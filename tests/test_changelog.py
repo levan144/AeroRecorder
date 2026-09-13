@@ -101,12 +101,7 @@ class CommandLineTests(unittest.TestCase):
         import subprocess
         import tempfile
 
-        text = "# Changelog
-
-## [1.0.0] - 2026-09-13
-
-- Settings → About
-"
+        text = "# Changelog\n\n## [1.0.0] - 2026-09-13\n\n- Settings → About\n"
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "CHANGELOG.md"
             path.write_text(text, encoding="utf-8")
