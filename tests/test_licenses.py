@@ -78,5 +78,29 @@ class RepositoryLicenseTests(unittest.TestCase):
                 self.assertGreater(len(text.strip()), 100)
 
 
+class VersionSourceTests(unittest.TestCase):
+    def test_version_is_semver(self) -> None:
+        import re
+
+        from aero_recorder import __version__
+
+        self.assertRegex(__version__, r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$")
+
+    def test_version_is_one_point_zero_or_later(self) -> None:
+        from aero_recorder import __version__
+
+        major = int(__version__.split(".")[0])
+        self.assertGreaterEqual(major, 1)
+
+    def test_installer_script_does_not_hardcode_a_version(self) -> None:
+        from aero_recorder.runtime import application_root
+
+        script = (application_root() / "installer" / "AeroRecorder.iss").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn('#define MyAppVersion "', script)
+        self.assertIn("MyAppVersion", script)
+
+
 if __name__ == "__main__":
     unittest.main()

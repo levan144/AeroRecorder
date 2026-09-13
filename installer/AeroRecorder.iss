@@ -1,5 +1,7 @@
 #define MyAppName "AeroRecorder"
-#define MyAppVersion "0.1.0"
+#ifndef MyAppVersion
+  #error MyAppVersion was not supplied. Run ISCC with /DMyAppVersion=x.y.z
+#endif
 #define MyAppPublisher "AeroRecorder"
 #define MyAppExeName "AeroRecorder.exe"
 
@@ -13,7 +15,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=output
-OutputBaseFilename=AeroRecorder-Setup
+OutputBaseFilename=AeroRecorder-Setup-{#MyAppVersion}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern

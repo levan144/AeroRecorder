@@ -1,5 +1,21 @@
+[CmdletBinding()]
+param(
+    [string]$Version,
+    [switch]$SkipInstaller
+)
+
 $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
+
+if (-not $Version) {
+    $initFile = Join-Path $projectRoot "aero_recorder\__init__.py"
+    $match = Select-String -LiteralPath $initFile -Pattern '^__version__\s*=\s*"([^"]+)"'
+    if (-not $match) {
+        throw "Could not read __version__ from $initFile"
+    }
+    $Version = $match.Matches[0].Groups[1].Value
+}
+Write-Host "Building AeroRecorder $Version"
 $venvDirectory = if ($env:AERORECORDER_BUILD_VENV) {
     $env:AERORECORDER_BUILD_VENV
 } else {
@@ -50,13 +66,18 @@ try {
 
 $portableFolder = Join-Path $projectRoot "dist\AeroRecorder"
 $portableMarker = Join-Path $portableFolder "portable.flag"
-$portableArchive = Join-Path $projectRoot "dist\AeroRecorder-Portable.zip"
+$portableArchive = Join-Path $projectRoot "dist\AeroRecorder-Portable-$Version.zip"
 Set-Content -LiteralPath $portableMarker -Value "AeroRecorder portable mode" -Encoding ascii
 if (Test-Path -LiteralPath $portableArchive) {
     Remove-Item -LiteralPath $portableArchive -Force
 }
 Compress-Archive -Path (Join-Path $portableFolder "*") -DestinationPath $portableArchive -CompressionLevel Optimal
-Write-Host "Portable ZIP created in dist\AeroRecorder-Portable.zip"
+Write-Host "Portable ZIP created in $portableArchive"
+
+if ($SkipInstaller) {
+    Write-Host "Installer skipped by request. Portable build is in dist\AeroRecorder"
+    return
+}
 
 $innoCandidates = @(
     "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
@@ -64,10 +85,12 @@ $innoCandidates = @(
     "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
 )
 $innoCompiler = $innoCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-if ($innoCompiler) {
-    & $innoCompiler (Join-Path $projectRoot "installer\AeroRecorder.iss")
-    Write-Host "Installer created in installer\output\AeroRecorder-Setup.exe"
-} else {
-    Write-Host "Portable application created in dist\AeroRecorder"
-    Write-Host "Install Inno Setup 6 and run this script again to produce AeroRecorder-Setup.exe."
+if (-not $innoCompiler) {
+    throw "Inno Setup 6 was not found. Install it, or pass -SkipInstaller for a portable-only build."
 }
+
+& $innoCompiler "/DMyAppVersion=$Version" (Join-Path $projectRoot "installer\AeroRecorder.iss")
+if ($LASTEXITCODE -ne 0) {
+    throw "Inno Setup failed with exit code $LASTEXITCODE"
+}
+Write-Host "Installer created in installer\output\AeroRecorder-Setup-$Version.exe"
