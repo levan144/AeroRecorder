@@ -90,5 +90,36 @@ class RepositoryChangelogTests(unittest.TestCase):
         self.assertTrue(section.strip())
 
 
+class CommandLineTests(unittest.TestCase):
+    def test_non_ascii_survives_a_cp1252_console(self) -> None:
+        """Windows consoles default to cp1252; the changelog contains arrows.
+
+        The release workflow runs this on a Windows runner, so an encoding
+        crash here would fail the release itself.
+        """
+        import os
+        import subprocess
+        import tempfile
+
+        text = "# Changelog
+
+## [1.0.0] - 2026-09-13
+
+- Settings → About
+"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "CHANGELOG.md"
+            path.write_text(text, encoding="utf-8")
+            script = Path(__file__).resolve().parent.parent / "scripts" / "get_changelog_section.py"
+            result = subprocess.run(
+                [sys.executable, str(script), "1.0.0", "--file", str(path)],
+                capture_output=True,
+                env={**os.environ, "PYTHONIOENCODING": "cp1252", "PYTHONUTF8": "0"},
+                timeout=30,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
+        self.assertIn("→".encode("utf-8"), result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

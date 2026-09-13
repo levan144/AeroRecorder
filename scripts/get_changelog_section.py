@@ -62,6 +62,14 @@ def main() -> int:
     parser.add_argument("--file", default="CHANGELOG.md", help="Path to the changelog")
     arguments = parser.parse_args()
 
+    # The changelog is UTF-8 and may contain arrows, dashes, or other
+    # characters outside cp1252, which is Windows' default console encoding.
+    # Without this the script crashes on the CI runner mid-release.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+    except (AttributeError, ValueError):
+        pass
+
     try:
         text = Path(arguments.file).read_text(encoding="utf-8")
     except OSError as exc:
