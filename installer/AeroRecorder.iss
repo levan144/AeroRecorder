@@ -22,8 +22,15 @@ WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayName={#MyAppName}
-CloseApplications=yes
+; "force" rather than "yes": AeroRecorder runs a windowless audio-meter helper
+; from the same executable. Restart Manager can only close processes that own
+; a window, so with "yes" that helper blocks the install and Setup reports
+; that it could not close all applications. Setup still lists what it will
+; close on the Preparing page, so nothing happens without the user seeing it.
+CloseApplications=force
 RestartApplications=no
+; Only ever run one Setup at a time.
+SetupMutex=AeroRecorderSetup-b7f3a1c94e2d
 SetupIconFile=..\assets\AeroRecorder.ico
 LicenseFile=..\LICENSE
 
