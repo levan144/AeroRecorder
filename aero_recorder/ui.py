@@ -282,17 +282,59 @@ class AeroRecorderApp:
             self.root.after(1800, self.check_for_updates)
 
     def _drain_ui_queue(self) -> None:
+        """Run queued callbacks from background threads on the Tk main loop.
+
+        This is the only channel background work has to the interface: tray
+        clicks, device scans, update checks, recording results and preview
+        results all arrive here.
+
+        Every callback is isolated. A callback that raises must not stop the
+        pump, because a dead pump leaves the application looking alive while
+        silently discarding every one of those events, and the only way out
+        for the user is to kill the process.
+        """
         processed = 0
         try:
             while processed < 64:
                 callback = self._ui_queue.get_nowait()
-                callback()
                 processed += 1
+                try:
+                    callback()
+                except Exception:
+                    # One bad callback must not take down the rest.
+                    self._report_background_error("UI queue callback")
         except queue.Empty:
             pass
+        finally:
+            # Rescheduling is in `finally` so the pump survives anything the
+            # loop above may raise, including a failure inside the error
+            # reporting itself.
+            try:
+                self.root.after(40, self._drain_ui_queue)
+            except tk.TclError:
+                # The interpreter is shutting down; nothing left to pump.
+                pass
+
+    def _report_background_error(self, context: str) -> None:
+        """Record an exception without interrupting the user.
+
+        Written to %LOCALAPPDATA%\\AeroRecorder\\errors.log so a fault that
+        would otherwise be invisible can be diagnosed after the fact.
+        """
         try:
-            self.root.after(40, self._drain_ui_queue)
-        except tk.TclError:
+            import traceback
+
+            detail = traceback.format_exc()
+            local_app_data = os.environ.get("LOCALAPPDATA")
+            if not local_app_data:
+                return
+            log = Path(local_app_data) / "AeroRecorder" / "errors.log"
+            log.parent.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            with log.open("a", encoding="utf-8") as handle:
+                handle.write(f"\n===== {stamp}  {context}\n{detail}")
+        except Exception:
+            # Logging must never itself break the caller.
             pass
 
     def _bind_mouse_wheel(self, canvas: tk.Canvas) -> None:
@@ -404,9 +446,23 @@ class AeroRecorderApp:
         )
 
     def _poll_hotkeys(self) -> None:
+        """Poll global shortcuts.
+
+        Like the UI queue, this re-arms itself, so a single unexpected
+        exception here would silently disable every global shortcut for the
+        rest of the session. The poll is isolated and the reschedule is in
+        `finally`.
+        """
         try:
             if focus_allows_hotkeys(self.root.focus_get):
                 self.hotkeys.poll()
+        except tk.TclError:
+            # The interpreter is going away. Do not re-arm.
+            return
+        except Exception:
+            self._report_background_error("hotkey poll")
+
+        try:
             self.root.after(60, self._poll_hotkeys)
         except tk.TclError:
             pass
