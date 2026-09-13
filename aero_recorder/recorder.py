@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 from dataclasses import replace
 from pathlib import Path
 from typing import Callable
@@ -325,6 +326,7 @@ class Recorder:
         self._system_audio_path: Path | None = None
         self._paused = False
         self._microphone_muted = False
+        self._stop_requested_at: float | None = None
 
     @property
     def is_recording(self) -> bool:
@@ -465,6 +467,7 @@ class Recorder:
             if not process or process.poll() is not None or self._stopping:
                 return
             self._stopping = True
+            self._stop_requested_at = time.monotonic()
             was_paused = self._paused
             self._paused = False
         if was_paused:
@@ -499,6 +502,30 @@ class Recorder:
             except OSError:
                 pass
 
+    def _phase(self, label: str, started: float) -> None:
+        """Record how long a finalisation phase took.
+
+        Enabled by setting AERORECORDER_TIMING=1. Writes to
+        %LOCALAPPDATA%\\AeroRecorder\\timing.log so a slow save can be
+        diagnosed on the machine where it actually happens.
+        """
+        if not os.environ.get("AERORECORDER_TIMING"):
+            return
+        try:
+            import datetime
+
+            elapsed = time.monotonic() - started
+            local_app_data = os.environ.get("LOCALAPPDATA")
+            if not local_app_data:
+                return
+            log = Path(local_app_data) / "AeroRecorder" / "timing.log"
+            log.parent.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.datetime.now().strftime("%H:%M:%S")
+            with log.open("a", encoding="utf-8") as handle:
+                handle.write(f"{stamp}  {label:<34} {elapsed:7.2f}s\n")
+        except (OSError, ValueError):
+            pass
+
     def _monitor(self) -> None:
         with self._lock:
             process = self.process
@@ -522,14 +549,23 @@ class Recorder:
         except OSError as exc:
             error_lines.append(str(exc))
             return_code = process.returncode if process.returncode is not None else -1
+        # Measured from the stop request, not from when this thread started,
+        # so the number reflects the wait the user actually experiences.
+        if self._stop_requested_at is not None:
+            self._phase("ffmpeg exit after stop", self._stop_requested_at)
+
+        audio_started = time.monotonic()
         if system_audio:
             system_audio.stop()
+            self._phase("system audio stop", audio_started)
         success = return_code == 0 and options.output_path.exists()
         error = ""
         if success:
+            finalise_started = time.monotonic()
             try:
                 if options.output_format == "GIF":
                     self._convert_to_gif(options.output_path, final_output_path, error_lines)
+                    self._phase("GIF conversion", finalise_started)
                 elif system_audio_path:
                     self._merge_system_audio(
                         options,
@@ -537,8 +573,10 @@ class Recorder:
                         final_output_path,
                         error_lines,
                     )
+                    self._phase("system audio merge", finalise_started)
                 else:
                     options.output_path.replace(final_output_path)
+                    self._phase("rename to final", finalise_started)
             except OSError as exc:
                 success = False
                 error_lines.append(f"Could not finalize recording: {exc}")
@@ -559,6 +597,8 @@ class Recorder:
                 pass
 
         result = RecordingResult(final_output_path, success, error)
+        if self._stop_requested_at is not None:
+            self._phase("TOTAL stop -> saved", self._stop_requested_at)
         with self._lock:
             callback = self._finish_callback
             self.process = None
