@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test on Windows
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Verify Tkinter is available
+        run: python -c "import tkinter; print('tkinter', tkinter.TkVersion)"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Check formatting
+        run: ruff format --check .
+
+      - name: Validate the FFmpeg lockfile
+        run: |
+          python -c "from aero_recorder.ffmpeg_lock import load_lock; lock = load_lock(); print('FFmpeg', lock.version, lock.sha256[:12])"
+
+      - name: Read the pinned FFmpeg hash
+        id: ffmpeg
+        shell: pwsh
+        run: |
+          $lock = Get-Content -LiteralPath ffmpeg.lock.json -Raw | ConvertFrom-Json
+          "sha256=$($lock.sha256)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      # The smoke test and several unit tests exercise FFmpeg. Cached by the
+      # pinned hash, so a new download only happens when the pin changes.
+      - name: Restore the FFmpeg cache
+        uses: actions/cache@v4
+        with:
+          path: ~/AppData/Local/AeroRecorder/ffmpeg-cache
+          key: ffmpeg-${{ steps.ffmpeg.outputs.sha256 }}
+
+      - name: Fetch and verify FFmpeg
+        shell: pwsh
+        run: ./scripts/get-ffmpeg.ps1
+
+      - name: Run the test suite
+        env:
+          AERORECORDER_SUPPRESS_ERROR_LOG: '1'
+        run: python -m unittest discover -s tests -v
+
+      - name: Smoke test the application
+        run: python main.py --smoke-test
