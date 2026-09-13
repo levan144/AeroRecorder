@@ -53,6 +53,7 @@ from .theme import (
 )
 from .tray import SystemTrayIcon
 from . import __version__
+from .icons import draw_icon
 from .licenses import LICENSE_FILES, license_document
 from .updates import UpdateInfo, check_latest_release
 from .winapi import (
@@ -69,6 +70,7 @@ class RecordingPill:
         self.started_at = started_at
         self.paused_at: float | None = None
         self.paused_total = 0.0
+        self._finishing = False
         self.window = tk.Toplevel(app.root)
         self.window.title("AeroRecorder recording")
         self.window.configure(bg=COLORS["surface"])
@@ -136,6 +138,11 @@ class RecordingPill:
     def _tick(self) -> None:
         if not self.window.winfo_exists():
             return
+        if self._finishing:
+            # The capture has ended and the file is being written. The elapsed
+            # time is now fixed, so the clock must stop; a timer that keeps
+            # climbing implies recording is still in progress.
+            return
         now = time.monotonic()
         active_pause = now - self.paused_at if self.paused_at is not None else 0.0
         elapsed = max(0, int(now - self.started_at - self.paused_total - active_pause))
@@ -146,6 +153,20 @@ class RecordingPill:
         self.window.after(250, self._tick)
 
     def set_finishing(self) -> None:
+        """Freeze the clock and show that the file is being written."""
+        self._finishing = True
+        # Settle the timer on the true final duration rather than whatever
+        # value the last tick happened to leave on screen.
+        now = time.monotonic()
+        active_pause = now - self.paused_at if self.paused_at is not None else 0.0
+        elapsed = max(0, int(now - self.started_at - self.paused_total - active_pause))
+        hours, remainder = divmod(elapsed, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        final = f"{hours:02d}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes:02d}:{seconds:02d}"
+        try:
+            self.timer_label.configure(text=final, fg=COLORS["text_muted"])
+        except tk.TclError:
+            pass
         self.stop_button.set_text("Saving…")
         self.stop_button.set_enabled(False)
         self.pause_button.set_enabled(False)
@@ -274,6 +295,46 @@ class AeroRecorderApp:
         except tk.TclError:
             pass
 
+    def _bind_mouse_wheel(self, canvas: tk.Canvas) -> None:
+        """Make the wheel scroll a canvas from anywhere inside it.
+
+        Tk delivers <MouseWheel> to the deepest widget under the pointer and
+        does not bubble it up to ancestors, so binding the canvas alone only
+        works over empty canvas background. Any real control swallows it.
+
+        Binding every descendant individually is brittle, because widgets are
+        created and destroyed as pages rebuild. Instead the binding is
+        installed application-wide while the pointer is inside this canvas and
+        removed when it leaves, so exactly one canvas responds at a time and
+        nothing leaks after the page is destroyed.
+        """
+
+        def on_wheel(event: tk.Event) -> str:
+            if not canvas.winfo_exists():
+                return ""
+            first, last = canvas.yview()
+            if first <= 0.0 and last >= 1.0:
+                # Everything already fits; let the event pass through.
+                return ""
+            # event.delta is a multiple of 120 on Windows; three lines per
+            # notch matches the platform convention.
+            steps = int(-1 * (event.delta / 120)) * 3
+            canvas.yview_scroll(steps, "units")
+            return "break"
+
+        def bind_wheel(_event: tk.Event) -> None:
+            canvas.bind_all("<MouseWheel>", on_wheel)
+
+        def unbind_wheel(_event: tk.Event) -> None:
+            try:
+                canvas.unbind_all("<MouseWheel>")
+            except tk.TclError:
+                pass
+
+        canvas.bind("<Enter>", bind_wheel)
+        canvas.bind("<Leave>", unbind_wheel)
+        canvas.bind("<Destroy>", unbind_wheel)
+
     def _configure_ttk(self) -> None:
         style = ttk.Style(self.root)
         style.theme_use("clam")
@@ -365,12 +426,24 @@ class AeroRecorderApp:
             pass
 
     def show_from_tray(self) -> None:
-        if self.recorder.is_recording:
-            return
-        self.root.deiconify()
-        self.root.state("normal")
-        self.root.lift()
-        self.root.focus_force()
+        """Restore and focus the main window.
+
+        This must never silently do nothing. Clicking the tray icon is an
+        explicit request, and the only feedback available is the window
+        appearing; refusing it leaves the user with no way back into the
+        application short of killing the process.
+
+        In particular this stays responsive while a recording is being
+        finalised, when the ffmpeg process is still alive.
+        """
+        try:
+            self.root.deiconify()
+            self.root.state("normal")
+            self.root.lift()
+            self.root.focus_force()
+        except tk.TclError:
+            # The window is being torn down. Nothing to restore.
+            pass
 
     def _build_shell(self) -> None:
         self.sidebar = tk.Frame(self.root, width=94, bg=COLORS["sidebar"])
@@ -392,10 +465,11 @@ class AeroRecorderApp:
             font=(FONT_DISPLAY, 9, "bold"),
         ).pack(pady=(7, 0))
 
-        self.nav_buttons: dict[str, tk.Button] = {}
-        self._nav_button("recorder", "●", "Capture")
-        self._nav_button("library", "▤", "Library")
-        self._nav_button("settings", "⚙", "Setup")
+        self.nav_buttons: dict[str, tk.Frame] = {}
+        self._nav_parts: dict[str, tuple[tk.Frame, tk.Canvas, tk.Label, str]] = {}
+        self._nav_button("recorder", "capture", "Capture")
+        self._nav_button("library", "library", "Library")
+        self._nav_button("settings", "setup", "Setup")
 
         footer = tk.Frame(self.sidebar, bg=COLORS["sidebar"], pady=18)
         footer.pack(side="bottom", fill="x")
@@ -424,26 +498,66 @@ class AeroRecorderApp:
         self.pages["library"] = self._build_library_page()
         self.pages["settings"] = self._build_settings_page()
 
+    ICON_BOX = 26
+
     def _nav_button(self, name: str, icon: str, label: str) -> None:
-        button = tk.Button(
-            self.sidebar,
-            text=f"{icon}\n{label}",
-            command=lambda: self._show_page(name),
+        container = tk.Frame(self.sidebar, bg=COLORS["sidebar"], cursor="hand2")
+        container.pack(fill="x", padx=9, pady=4)
+
+        canvas = tk.Canvas(
+            container,
+            width=self.ICON_BOX,
+            height=self.ICON_BOX,
+            bg=COLORS["sidebar"],
+            highlightthickness=0,
+            bd=0,
+        )
+        canvas.pack(pady=(9, 3))
+        draw_icon(canvas, icon, self.ICON_BOX, COLORS["text_secondary"])
+
+        text = tk.Label(
+            container,
+            text=label,
             bg=COLORS["sidebar"],
             fg=COLORS["text_secondary"],
-            activebackground=COLORS["surface_alt"],
-            activeforeground=COLORS["text"],
-            relief="flat",
-            bd=0,
-            anchor="center",
-            padx=5,
-            pady=10,
-            cursor="hand2",
             font=(FONT_TEXT, 8, "bold"),
-            justify="center",
         )
-        button.pack(fill="x", padx=9, pady=4)
-        self.nav_buttons[name] = button
+        text.pack(pady=(0, 9))
+
+        widgets = (container, canvas, text)
+
+        def activate(_event: tk.Event | None = None) -> None:
+            self._show_page(name)
+
+        def on_enter(_event: tk.Event) -> None:
+            if self.current_page != name:
+                self._paint_nav(name, COLORS["surface_alt"], COLORS["text"])
+
+        def on_leave(_event: tk.Event) -> None:
+            if self.current_page != name:
+                self._paint_nav(name, COLORS["sidebar"], COLORS["text_secondary"])
+
+        for widget in widgets:
+            widget.bind("<Button-1>", activate)
+            widget.bind("<Enter>", on_enter)
+            widget.bind("<Leave>", on_leave)
+            widget.configure(cursor="hand2")
+
+        self.nav_buttons[name] = container
+        self._nav_parts[name] = (container, canvas, text, icon)
+
+    def _paint_nav(self, name: str, background: str, foreground: str) -> None:
+        parts = self._nav_parts.get(name)
+        if not parts:
+            return
+        container, canvas, text, icon = parts
+        try:
+            container.configure(bg=background)
+            canvas.configure(bg=background)
+            text.configure(bg=background, fg=foreground)
+            draw_icon(canvas, icon, self.ICON_BOX, foreground)
+        except tk.TclError:
+            pass
 
     def _show_page(self, name: str) -> None:
         self.current_page = name
@@ -453,9 +567,10 @@ class AeroRecorderApp:
             else:
                 page.pack_forget()
             active = page_name == name
-            self.nav_buttons[page_name].configure(
-                bg=COLORS["surface_alt"] if active else COLORS["sidebar"],
-                fg=COLORS["accent"] if active else COLORS["text_secondary"],
+            self._paint_nav(
+                page_name,
+                COLORS["surface_alt"] if active else COLORS["sidebar"],
+                COLORS["accent"] if active else COLORS["text_secondary"],
             )
         if name == "library":
             self.refresh_recordings()
@@ -1692,10 +1807,7 @@ class AeroRecorderApp:
 
         body.bind("<Configure>", update_scroll_region)
         canvas.bind("<Configure>", fit_body)
-        canvas.bind(
-            "<MouseWheel>",
-            lambda event: canvas.yview_scroll(-1 if event.delta > 0 else 1, "units"),
-        )
+        self._bind_mouse_wheel(canvas)
 
         self._page_header(body, "Settings", "Customize shortcuts and webcam overlay.")
         card = self._card(body, padding=24)
@@ -2169,7 +2281,9 @@ class AeroRecorderApp:
 
     def _restart_audio_meter(self) -> None:
         if self.recorder.is_recording or self.start_pending:
-            self.audio_meter.stop()
+            # Runs on the Tk main loop, including from _recording_finished.
+            # Reaping the helper here would freeze the window.
+            self.audio_meter.stop(wait=False)
             return
         microphone_value = self.microphone_var.get()
         microphone = (
