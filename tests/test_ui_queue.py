@@ -15,7 +15,12 @@ class UiQueuePumpTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
+        import os
         import tkinter as tk
+
+        # These tests deliberately raise inside callbacks. Keep the simulated
+        # failures out of the real error log.
+        os.environ["AERORECORDER_SUPPRESS_ERROR_LOG"] = "1"
 
         try:
             cls.root = tk.Tk()
@@ -110,6 +115,59 @@ class UiQueuePumpTests(unittest.TestCase):
 
     def test_queue_is_a_plain_queue(self) -> None:
         self.assertIsInstance(self.app._ui_queue, queue.Queue)
+
+    def test_alert_does_not_open_a_dialog_inside_the_pump(self) -> None:
+        """A modal opened inside the pump stalls it until dismissed.
+
+        If the window is withdrawn to the tray that dialog can be invisible,
+        which stalls the pump permanently. _alert must therefore defer the
+        dialog rather than open it inline.
+        """
+        opened_inline: list[str] = []
+
+        import aero_recorder.ui as uimod
+
+        original = uimod.messagebox.showerror
+
+        def spy(*args, **kwargs):
+            opened_inline.append("called")
+            return "ok"
+
+        uimod.messagebox.showerror = spy
+        try:
+            # Queue an _alert exactly as a background handler would.
+            self.app._ui_queue.put(
+                lambda: self.app._alert("error", "Title", "Message")
+            )
+            # Drain once. The alert must NOT have opened yet.
+            self.root.update()
+            inline = len(opened_inline)
+        finally:
+            uimod.messagebox.showerror = original
+
+        self.assertEqual(
+            inline,
+            0,
+            "_alert opened a modal synchronously inside the pump",
+        )
+
+    def test_the_pump_survives_an_alert_being_queued(self) -> None:
+        import aero_recorder.ui as uimod
+
+        original = uimod.messagebox.showerror
+        uimod.messagebox.showerror = lambda *a, **k: "ok"
+        try:
+            self.app._ui_queue.put(
+                lambda: self.app._alert("error", "Title", "Message")
+            )
+            self._settle()
+            seen: list[str] = []
+            self.app._ui_queue.put(lambda: seen.append("alive"))
+            self._settle()
+        finally:
+            uimod.messagebox.showerror = original
+
+        self.assertEqual(seen, ["alive"], "the pump stopped after an alert")
 
 
 if __name__ == "__main__":

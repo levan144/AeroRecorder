@@ -407,7 +407,7 @@ class Recorder:
             self._system_audio_path = system_audio_path
             self._paused = False
             self._microphone_muted = False
-        threading.Thread(target=self._monitor, daemon=True).start()
+        threading.Thread(target=self._monitor_guarded, daemon=True).start()
 
     def set_microphone_muted(self, muted: bool) -> None:
         with self._lock:
@@ -525,6 +525,47 @@ class Recorder:
                 handle.write(f"{stamp}  {label:<34} {elapsed:7.2f}s\n")
         except (OSError, ValueError):
             pass
+
+    def _monitor_guarded(self) -> None:
+        """Run _monitor, guaranteeing the finish callback always fires.
+
+        _monitor owns the only path that reports a recording as complete. If
+        it raises anywhere between ffmpeg exiting and the callback, the
+        interface waits on "Saving…" forever with no error and no recovery
+        short of killing the process.
+
+        Any escaping exception is therefore converted into a failed result and
+        the recorder is reset, so the application always returns to a usable
+        state.
+        """
+        try:
+            self._monitor()
+            return
+        except Exception as exc:
+            detail = f"{type(exc).__name__}: {exc}"
+
+        with self._lock:
+            callback = self._finish_callback
+            output_path = self.final_output_path
+            self.process = None
+            self.options = None
+            self.final_output_path = None
+            self._finish_callback = None
+            self._stopping = False
+            self._system_audio = None
+            self._system_audio_path = None
+            self._paused = False
+            self._microphone_muted = False
+            self._stop_requested_at = None
+
+        if callback:
+            callback(
+                RecordingResult(
+                    output_path or Path("unknown"),
+                    False,
+                    f"The recording could not be finalized.\n\n{detail}",
+                )
+            )
 
     def _monitor(self) -> None:
         with self._lock:

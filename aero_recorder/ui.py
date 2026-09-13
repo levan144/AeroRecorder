@@ -315,6 +315,42 @@ class AeroRecorderApp:
                 # The interpreter is shutting down; nothing left to pump.
                 pass
 
+    def _alert(self, kind: str, title: str, message: str) -> None:
+        """Show a dialog without ever wedging the UI queue.
+
+        A modal dialog blocks the Tk event loop until it is dismissed. Opened
+        from inside _drain_ui_queue that stalls the pump, and if the main
+        window has been withdrawn to the tray the dialog can be invisible,
+        which stalls it permanently: the tray icon stops responding and the
+        only way out is to kill the process.
+
+        So the window is restored first, guaranteeing the dialog is reachable,
+        and the dialog itself is deferred to a later event-loop turn so the
+        pump has already rescheduled itself before anything blocks.
+        """
+
+        def present() -> None:
+            try:
+                if self.root.state() == "withdrawn":
+                    self.root.deiconify()
+                self.root.lift()
+            except tk.TclError:
+                pass
+            show = {
+                "error": messagebox.showerror,
+                "warning": messagebox.showwarning,
+                "info": messagebox.showinfo,
+            }.get(kind, messagebox.showinfo)
+            try:
+                show(title, message, parent=self.root)
+            except tk.TclError:
+                pass
+
+        try:
+            self.root.after(0, present)
+        except tk.TclError:
+            pass
+
     def _report_background_error(self, context: str) -> None:
         """Record an exception without interrupting the user.
 
@@ -325,6 +361,10 @@ class AeroRecorderApp:
             import traceback
 
             detail = traceback.format_exc()
+            # Tests set this to keep their simulated failures out of the real
+            # user-facing log.
+            if os.environ.get("AERORECORDER_SUPPRESS_ERROR_LOG"):
+                return
             local_app_data = os.environ.get("LOCALAPPDATA")
             if not local_app_data:
                 return
@@ -2097,27 +2137,45 @@ class AeroRecorderApp:
     def _apply_update_check(
         self, update: UpdateInfo | None, error: str, manual: bool
     ) -> None:
+        # Every dialog below goes through _alert, which defers it out of the
+        # UI queue pump. Opening a modal directly here would stall the pump,
+        # and would stall it permanently whenever the main window happens to
+        # be minimised to the tray.
         if error:
             self.update_status_var.set("Update check unavailable")
             if manual:
-                messagebox.showerror("Could not check for updates", error, parent=self.root)
+                self._alert("error", "Could not check for updates", error)
             return
         if update is None:
             self.update_status_var.set("AeroRecorder is up to date")
             if manual:
-                messagebox.showinfo(
+                self._alert(
+                    "info",
                     "No update available",
                     "You are using the latest AeroRecorder release.",
-                    parent=self.root,
                 )
             return
         self.update_status_var.set(f"AeroRecorder {update.version} is available")
-        if messagebox.askyesno(
-            "AeroRecorder update available",
-            f"{update.name} is available. Open the GitHub release page?",
-            parent=self.root,
-        ) and update.page_url:
-            webbrowser.open(update.page_url)
+
+        def ask() -> None:
+            try:
+                if self.root.state() == "withdrawn":
+                    self.root.deiconify()
+                self.root.lift()
+                confirmed = messagebox.askyesno(
+                    "AeroRecorder update available",
+                    f"{update.name} is available. Open the download page?",
+                    parent=self.root,
+                )
+            except tk.TclError:
+                return
+            if confirmed and update.page_url:
+                webbrowser.open(update.page_url)
+
+        try:
+            self.root.after(0, ask)
+        except tk.TclError:
+            pass
 
     def _apply_shortcut_bindings(self) -> None:
         try:
@@ -2326,7 +2384,14 @@ class AeroRecorderApp:
         self.refresh_mic_button.set_enabled(False)
 
         def worker() -> None:
-            devices = list_microphones()
+            # A device scan that raises must still resolve the UI. Without
+            # this the thread dies silently and the combo box is stuck on
+            # "Scanning…" for the rest of the session, with no error anywhere.
+            try:
+                devices = list_microphones()
+            except Exception:
+                devices = []
+                self._report_background_error("microphone scan")
             self._ui_queue.put(lambda: self._apply_microphones(generation, devices))
 
         threading.Thread(target=worker, daemon=True).start()
@@ -2425,7 +2490,11 @@ class AeroRecorderApp:
         self.refresh_webcam_button.set_enabled(False)
 
         def worker() -> None:
-            devices = list_webcams()
+            try:
+                devices = list_webcams()
+            except Exception:
+                devices = []
+                self._report_background_error("webcam scan")
             self._ui_queue.put(lambda: self._apply_webcams(generation, devices))
 
         threading.Thread(target=worker, daemon=True).start()
@@ -2756,12 +2825,35 @@ class AeroRecorderApp:
         else:
             self._clear_recording_preview()
 
+    # Character/line box used when the preview shows a message instead of an
+    # image. Tk interprets a Label's width and height as characters and lines
+    # for text, but as PIXELS as soon as an image is attached, so the two
+    # states must configure them separately or the panel collapses.
+    PREVIEW_TEXT_WIDTH = 30
+    PREVIEW_TEXT_HEIGHT = 11
+
+    def _show_preview_image(self, image: tk.PhotoImage) -> None:
+        self.preview_image_label.configure(
+            image=image,
+            text="",
+            width=image.width(),
+            height=image.height(),
+        )
+
+    def _show_preview_text(self, message: str) -> None:
+        self.preview_image_label.configure(
+            image="",
+            text=message,
+            width=self.PREVIEW_TEXT_WIDTH,
+            height=self.PREVIEW_TEXT_HEIGHT,
+        )
+
     def _clear_recording_preview(self) -> None:
         if not hasattr(self, "preview_image_label"):
             return
         self._preview_generation += 1
         self.preview_image = None
-        self.preview_image_label.configure(image="", text="Select a recording")
+        self._show_preview_text("Select a recording")
         self.preview_title.configure(text="No recording selected")
         self.preview_details.configure(
             text="Duration  —\nResolution  —\nRecorded  —\nSize  —"
@@ -2773,7 +2865,7 @@ class AeroRecorderApp:
         self._preview_generation += 1
         generation = self._preview_generation
         self.preview_image = None
-        self.preview_image_label.configure(image="", text="Loading preview…")
+        self._show_preview_text("Loading preview…")
         self.preview_title.configure(text=path.stem)
         try:
             stat = path.stat()
@@ -2823,11 +2915,11 @@ class AeroRecorderApp:
         if thumbnail:
             try:
                 self.preview_image = tk.PhotoImage(file=str(thumbnail))
-                self.preview_image_label.configure(image=self.preview_image, text="")
+                self._show_preview_image(self.preview_image)
                 return
             except tk.TclError:
                 pass
-        self.preview_image_label.configure(image="", text="Preview unavailable")
+        self._show_preview_text("Preview unavailable")
 
     def play_selected(self) -> None:
         path = self._selected_recording()

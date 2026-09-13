@@ -85,9 +85,22 @@ def probe_recording(ffmpeg: Path, path: Path) -> RecordingMetadata:
     return parse_ffmpeg_metadata(result.stderr + "\n" + result.stdout)
 
 
-def create_thumbnail(ffmpeg: Path, path: Path) -> Path | None:
+THUMBNAIL_WIDTH = 244
+"""Pixel width of generated thumbnails.
+
+Sized to sit inside the preview panel without clipping. The value is part of
+the cache key, so changing it regenerates thumbnails rather than silently
+reusing ones at the old size.
+"""
+
+
+def create_thumbnail(
+    ffmpeg: Path, path: Path, width: int = THUMBNAIL_WIDTH
+) -> Path | None:
     try:
-        fingerprint = f"{path.resolve()}|{path.stat().st_mtime_ns}".encode("utf-8")
+        fingerprint = (
+            f"{path.resolve()}|{path.stat().st_mtime_ns}|w{width}".encode("utf-8")
+        )
     except OSError:
         return None
     cache = path.parent / ".aerorecorder-thumbnails"
@@ -110,7 +123,7 @@ def create_thumbnail(ffmpeg: Path, path: Path) -> Path | None:
                 "-frames:v",
                 "1",
                 "-vf",
-                "scale=300:-2",
+                f"scale={width}:-2",
                 str(thumbnail),
             ],
             capture_output=True,
