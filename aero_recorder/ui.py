@@ -54,6 +54,7 @@ from .theme import (
 from .tray import SystemTrayIcon
 from . import __version__
 from .icons import draw_icon
+from .watchdog import MainLoopWatchdog
 from .licenses import LICENSE_FILES, license_document
 from .updates import UpdateInfo, check_latest_release
 from .winapi import (
@@ -214,10 +215,14 @@ class AeroRecorderApp:
         self._preview_generation = 0
         self._webcam_generation = 0
         self._ui_queue: queue.Queue[Callable[[], None]] = queue.Queue()
+        # Records a full thread dump if the main loop ever stops responding,
+        # so an unresponsive window leaves evidence instead of silence.
+        self.watchdog = MainLoopWatchdog()
+        self.watchdog.start()
         self.tray = SystemTrayIcon(
-            lambda: self._ui_queue.put(self.show_from_tray),
+            self._tray_show_requested,
             lambda: self._ui_queue.put(self.stop_recording),
-            lambda: self._ui_queue.put(self._on_close),
+            self._tray_exit_requested,
             lambda: self.recorder.is_recording,
         )
 
@@ -293,6 +298,7 @@ class AeroRecorderApp:
         silently discarding every one of those events, and the only way out
         for the user is to kill the process.
         """
+        self.watchdog.beat()
         processed = 0
         try:
             while processed < 64:
@@ -314,6 +320,42 @@ class AeroRecorderApp:
             except tk.TclError:
                 # The interpreter is shutting down; nothing left to pump.
                 pass
+
+    def _tray_show_requested(self) -> None:
+        """Handle a tray show request from the tray thread.
+
+        The normal path queues the work for the Tk main loop. If the main loop
+        is wedged the queue never drains, so this also records a thread dump,
+        which is the only way to find out why a window refused to restore.
+        """
+        self._ui_queue.put(self.show_from_tray)
+        if self.watchdog.stalled_for() > self.watchdog.stall_seconds:
+            try:
+                self.watchdog._dump(self.watchdog.stalled_for())
+            except Exception:
+                pass
+
+    def _tray_exit_requested(self) -> None:
+        """Exit, and guarantee it happens even if the main loop is wedged.
+
+        A user must never be unable to close the application. The clean
+        shutdown is attempted first; if the main loop has not processed it
+        shortly afterwards, the process is ended outright.
+        """
+        self._ui_queue.put(self._on_close)
+
+        def failsafe() -> None:
+            time.sleep(6.0)
+            try:
+                self.watchdog._dump(self.watchdog.stalled_for())
+            except Exception:
+                pass
+            # Still alive six seconds after an explicit Exit means the clean
+            # path is blocked. Leaving the user with a process they cannot
+            # close is worse than a hard exit.
+            os._exit(0)
+
+        threading.Thread(target=failsafe, daemon=True).start()
 
     def _alert(self, kind: str, title: str, message: str) -> None:
         """Show a dialog without ever wedging the UI queue.
