@@ -7,12 +7,20 @@ import re
 import subprocess
 import sys
 import threading
+import time
 from array import array
 from collections.abc import Callable, Iterable
 from typing import Any
 
 from .runtime import application_root
 
+
+METER_SAMPLES_PER_SECOND = 30
+"""Upper bound on meter updates per second.
+
+The meter is a visual indicator; more than this is wasted work and risks
+the reader falling behind the writer.
+"""
 
 CREATE_NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 
@@ -194,7 +202,13 @@ def run_audio_meter_worker(payload: str) -> int:
             except Exception:
                 continue
             streams.append((kind, stream))
+        # A meter only needs to be redrawn a few dozen times a second. Without
+        # this floor, a stream whose read() fails returns instantly and the
+        # loop becomes a hot spin that emits thousands of samples per second,
+        # saturating the pipe and the reader on the other end.
+        minimum_interval = 1.0 / METER_SAMPLES_PER_SECOND
         while streams:
+            cycle_started = time.monotonic()
             levels = {"microphone": 0.0, "system": 0.0}
             for kind, stream in streams:
                 try:
@@ -204,6 +218,9 @@ def run_audio_meter_worker(payload: str) -> int:
                 except Exception:
                     levels[kind] = 0.0
             print(f"{levels['microphone']:.4f},{levels['system']:.4f}", flush=True)
+            remaining = minimum_interval - (time.monotonic() - cycle_started)
+            if remaining > 0:
+                time.sleep(remaining)
     except (BrokenPipeError, OSError):
         pass
     finally:

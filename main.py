@@ -17,6 +17,11 @@ def main() -> None:
             raise SystemExit(run_audio_meter_worker(sys.argv[index + 1]))
         raise SystemExit(2)
 
+    if "--diagnose" in sys.argv:
+        from aero_recorder.diagnose import run_diagnosis
+
+        raise SystemExit(run_diagnosis())
+
     smoke_test = "--smoke-test" in sys.argv
 
     # Only one AeroRecorder window may exist. A second launch hands focus to

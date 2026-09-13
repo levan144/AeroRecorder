@@ -219,6 +219,9 @@ class AeroRecorderApp:
         # so an unresponsive window leaves evidence instead of silence.
         self.watchdog = MainLoopWatchdog()
         self.watchdog.start()
+        # Newest audio levels, replaced rather than queued. See
+        # _audio_levels_from_thread for why this must not use _ui_queue.
+        self._latest_levels: tuple[float, float] | None = None
         self.tray = SystemTrayIcon(
             self._tray_show_requested,
             lambda: self._ui_queue.put(self.stop_recording),
@@ -281,6 +284,7 @@ class AeroRecorderApp:
         self.root.after(160, self.refresh_system_audio_devices)
         self.root.after(200, self.refresh_webcams)
         self.root.after(40, self._drain_ui_queue)
+        self.root.after(50, self._poll_audio_levels)
         self.root.after(60, self._poll_hotkeys)
         self.root.after(200, self.tray.start)
         if self.settings.check_for_updates:
@@ -2467,7 +2471,32 @@ class AeroRecorderApp:
         self.audio_meter.start(microphone, system_audio, self._audio_levels_from_thread)
 
     def _audio_levels_from_thread(self, microphone: float, system_audio: float) -> None:
-        self._ui_queue.put(lambda: self._apply_audio_levels(microphone, system_audio))
+        """Record the newest audio levels. Called from the meter thread.
+
+        Deliberately does NOT go through the UI queue. Level samples arrive
+        continuously and only the most recent one is worth drawing, so queuing
+        each of them lets the meter outrun the pump: the queue grows without
+        bound and every other event -- tray clicks, preview results, even the
+        Exit command -- ends up stuck behind tens of thousands of stale level
+        updates. The interface stays responsive but ignores the user, which is
+        indistinguishable from a hang.
+
+        A single assignment of an immutable tuple is atomic, so no lock is
+        needed. _poll_audio_levels picks it up on the main loop.
+        """
+        self._latest_levels = (microphone, system_audio)
+
+    def _poll_audio_levels(self) -> None:
+        levels, self._latest_levels = self._latest_levels, None
+        if levels is not None:
+            try:
+                self._apply_audio_levels(*levels)
+            except tk.TclError:
+                return
+        try:
+            self.root.after(50, self._poll_audio_levels)
+        except tk.TclError:
+            pass
 
     def _apply_audio_levels(self, microphone: float, system_audio: float) -> None:
         self.microphone_level_var.set(microphone)

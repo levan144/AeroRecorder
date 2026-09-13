@@ -116,6 +116,49 @@ class UiQueuePumpTests(unittest.TestCase):
     def test_queue_is_a_plain_queue(self) -> None:
         self.assertIsInstance(self.app._ui_queue, queue.Queue)
 
+    def test_audio_levels_never_enter_the_ui_queue(self) -> None:
+        """Level samples must be coalesced, not queued.
+
+        The meter produces samples continuously. Queuing each one lets it
+        outrun the pump, and the queue then grows without bound until tray
+        clicks, preview results and even Exit are stuck behind tens of
+        thousands of stale level updates.
+        """
+        before = self.app._ui_queue.qsize()
+        for index in range(5000):
+            self.app._audio_levels_from_thread(index / 5000.0, 0.5)
+        after = self.app._ui_queue.qsize()
+
+        self.assertEqual(
+            after,
+            before,
+            f"5000 level samples added {after - before} entries to the UI queue",
+        )
+
+    def test_only_the_newest_level_sample_is_kept(self) -> None:
+        self.app._audio_levels_from_thread(0.1, 0.2)
+        self.app._audio_levels_from_thread(0.7, 0.8)
+        self.assertEqual(self.app._latest_levels, (0.7, 0.8))
+
+    def test_polling_applies_and_clears_the_latest_sample(self) -> None:
+        self.app._audio_levels_from_thread(0.42, 0.24)
+        self.app._poll_audio_levels()
+        self.assertIsNone(self.app._latest_levels)
+        self.assertAlmostEqual(self.app.microphone_level_var.get(), 0.42, places=4)
+        self.assertAlmostEqual(self.app.system_audio_level_var.get(), 0.24, places=4)
+
+    def test_a_flood_of_levels_does_not_starve_other_callbacks(self) -> None:
+        seen: list[str] = []
+        self.app._ui_queue.put(lambda: seen.append("important"))
+        for index in range(20000):
+            self.app._audio_levels_from_thread(0.5, 0.5)
+        self._settle()
+        self.assertEqual(
+            seen,
+            ["important"],
+            "a normal callback was starved by audio level traffic",
+        )
+
     def test_alert_does_not_open_a_dialog_inside_the_pump(self) -> None:
         """A modal opened inside the pump stalls it until dismissed.
 
