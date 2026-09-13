@@ -42,9 +42,11 @@ python main.py
 ```powershell
 python -m unittest discover -s tests -v
 python main.py --smoke-test
+ruff check .
+ruff format --check .
 ```
 
-Both must pass. CI runs exactly these.
+All four must pass. CI runs exactly these.
 
 ## Coding conventions
 

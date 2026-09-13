@@ -1,0 +1,43 @@
+[project]
+name = "aero-recorder"
+# Inert. AeroRecorder is not distributed as a Python package; the real version
+# lives in aero_recorder/__init__.py and is read from there by the build.
+version = "0.0.0"
+description = "A lightweight, native-feeling Windows 11 screen recorder"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [
+    ".venv",
+    "build",
+    "dist",
+    "installer/output",
+    "docs",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "I",      # import sorting
+    "UP",     # pyupgrade
+    "B",      # bugbear
+    "SIM",    # simplify
+]
+ignore = [
+    "E501",   # line length is handled by the formatter
+    "B008",   # function call in default argument
+    "SIM105", # try/except/pass is clearer than contextlib.suppress in Tk teardown paths
+    "SIM117", # separate `with` statements read better when each patches one thing
+    "SIM102", # nested ifs are sometimes the clearer shape
+]
+
+[tool.ruff.lint.per-file-ignores]
+"AeroRecorder.spec" = ["F821"]  # PyInstaller injects SPECPATH at runtime
+"tests/*" = ["E402"]            # tests import lazily inside methods by design
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
