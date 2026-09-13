@@ -52,6 +52,8 @@ from .theme import (
     create_app_icon,
 )
 from .tray import SystemTrayIcon
+from . import __version__
+from .licenses import LICENSE_FILES, license_document
 from .updates import UpdateInfo, check_latest_release
 from .winapi import (
     apply_windows_11_window_style,
@@ -1846,7 +1848,70 @@ class AeroRecorderApp:
             self._save_settings,
             background=COLORS["surface"],
         ).pack(side="right", padx=(12, 0))
+
+        about_card = self._card(body, padding=18)
+        about_card.pack(fill="x", pady=(14, 0))
+        about_inner = about_card.inner  # type: ignore[attr-defined]
+        about_text = tk.Frame(about_inner, bg=COLORS["surface"])
+        about_text.pack(side="left", fill="x", expand=True)
+        tk.Label(
+            about_text,
+            text="About AeroRecorder",
+            bg=COLORS["surface"],
+            fg=COLORS["text"],
+            font=(FONT_TEXT, 10, "bold"),
+        ).pack(anchor="w")
+        tk.Label(
+            about_text,
+            text=(
+                f"Version {__version__} — free for personal use, "
+                "commercial use is not permitted."
+            ),
+            bg=COLORS["surface"],
+            fg=COLORS["text_muted"],
+            font=(FONT_TEXT, 8),
+        ).pack(anchor="w", pady=(3, 0))
+        FluentButton(
+            about_inner,
+            "Licenses",
+            self.show_licenses,
+            width=96,
+            height=36,
+            background=COLORS["surface"],
+        ).pack(side="right", padx=(12, 0))
         return page
+
+    def show_licenses(self) -> None:
+        window = tk.Toplevel(self.root)
+        window.title("AeroRecorder licenses")
+        window.geometry("760x560")
+        window.configure(bg=COLORS["surface"])
+        window.transient(self.root)
+
+        notebook = ttk.Notebook(window)
+        notebook.pack(fill="both", expand=True, padx=12, pady=12)
+
+        for entry in LICENSE_FILES:
+            title, text = license_document(entry.filename)
+            frame = tk.Frame(notebook, bg=COLORS["surface"])
+            scrollbar = ttk.Scrollbar(frame, orient="vertical")
+            widget = tk.Text(
+                frame,
+                wrap="word",
+                bg=COLORS["surface"],
+                fg=COLORS["text"],
+                relief="flat",
+                padx=12,
+                pady=12,
+                font=(FONT_TEXT, 9),
+                yscrollcommand=scrollbar.set,
+            )
+            scrollbar.configure(command=widget.yview)
+            scrollbar.pack(side="right", fill="y")
+            widget.pack(side="left", fill="both", expand=True)
+            widget.insert("1.0", text)
+            widget.configure(state="disabled")
+            notebook.add(frame, text=title)
 
     def check_for_updates(self, manual: bool = False) -> None:
         self.update_status_var.set("Checking GitHub Releases…")
