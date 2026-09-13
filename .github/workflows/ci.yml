@@ -71,8 +71,11 @@ jobs:
         run: ./scripts/get-ffmpeg.ps1
 
       - name: Run the test suite
+        timeout-minutes: 8
         env:
           AERORECORDER_SUPPRESS_ERROR_LOG: '1'
+          PYTHONUNBUFFERED: '1'
+          PYTHONFAULTHANDLER: '1'
         run: python -m unittest discover -s tests -v
 
       - name: Smoke test the application

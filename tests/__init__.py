@@ -40,6 +40,8 @@ for _name, _result in (
 ):
     setattr(_messagebox, _name, lambda *args, _result=_result, **kwargs: _result)
 
-# The full suite takes well under a minute locally. Ten minutes means
-# something is stuck, not slow.
-faulthandler.dump_traceback_later(timeout=600, exit=True, file=sys.stderr)
+# The full suite takes well under a minute locally. A dump every two minutes
+# is silent on a healthy run and shows exactly where a stuck run is stuck.
+# Non-fatal so the step's own timeout still ends the job with the dumps in
+# the log; a fatal dump risks the output being lost when the process exits.
+faulthandler.dump_traceback_later(timeout=120, repeat=True, file=sys.stderr)
