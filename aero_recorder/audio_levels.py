@@ -71,7 +71,9 @@ class AudioLevelMonitor:
         system_audio: str | None,
         callback: Callable[[float, float], None],
     ) -> None:
-        self.stop()
+        # Never block the caller: start() is invoked from the Tk main loop
+        # whenever a device changes or a recording ends.
+        self.stop(wait=False)
         if not microphone and not system_audio:
             callback(0.0, 0.0)
             return
@@ -107,20 +109,34 @@ class AudioLevelMonitor:
         )
         self._thread.start()
 
-    def stop(self) -> None:
+    def stop(self, *, wait: bool = True) -> None:
+        """Stop the helper process.
+
+        With ``wait=False`` the process is signalled and reaped on a
+        background thread. Callers on the Tk main loop must use that, because
+        waiting here blocks every redraw: the terminate/join pair below can
+        cost up to four seconds, which the user sees as a frozen window.
+        """
         process, self._process = self._process, None
-        if process and process.poll() is None:
-            try:
-                process.terminate()
-                process.wait(timeout=2)
-            except (OSError, subprocess.TimeoutExpired):
-                try:
-                    process.kill()
-                except OSError:
-                    pass
         thread, self._thread = self._thread, None
-        if thread and thread is not threading.current_thread():
-            thread.join(timeout=2.0)
+
+        def reap() -> None:
+            if process and process.poll() is None:
+                try:
+                    process.terminate()
+                    process.wait(timeout=2)
+                except (OSError, subprocess.TimeoutExpired):
+                    try:
+                        process.kill()
+                    except OSError:
+                        pass
+            if thread and thread is not threading.current_thread():
+                thread.join(timeout=2.0)
+
+        if wait:
+            reap()
+        elif process or thread:
+            threading.Thread(target=reap, daemon=True).start()
 
     @staticmethod
     def _read_levels(
