@@ -8,6 +8,8 @@ import uuid
 from collections.abc import Callable
 from ctypes import wintypes
 
+from .single_instance import show_window_message
+
 
 WM_APP = 0x8000
 WM_CLOSE = 0x0010
@@ -130,8 +132,16 @@ class SystemTrayIcon:
         instance = kernel32.GetModuleHandleW(None)
         class_name = f"AeroRecorderTray_{os.getpid()}"
 
+        # A second launch of AeroRecorder broadcasts this message instead of
+        # opening its own window. Answering it is what makes the running copy
+        # come to the front.
+        show_message = show_window_message()
+
         @WNDPROC
         def window_proc(hwnd: int, message: int, wparam: int, lparam: int) -> int:
+            if show_message and message == show_message:
+                self.on_show()
+                return 0
             if message == TRAY_MESSAGE:
                 event = int(lparam) & 0xFFFF
                 if event == WM_LBUTTONUP:
