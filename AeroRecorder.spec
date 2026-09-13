@@ -4,22 +4,51 @@ from pathlib import Path
 project_root = Path(SPECPATH)
 portable_binaries = []
 portable_data = []
-ffmpeg = project_root / "tools" / "ffmpeg.exe"
-if ffmpeg.exists():
-    portable_binaries.append((str(ffmpeg), "tools"))
-ffmpeg_license = project_root / "tools" / "FFMPEG-LICENSE.txt"
-if ffmpeg_license.exists():
-    portable_data.append((str(ffmpeg_license), "tools"))
+
+
+def _require(path: Path, remedy: str) -> Path:
+    """Abort the build if a required file is absent.
+
+    Every file here is one the application cannot ship without. Silently
+    building without it produces an installer that cannot record, or one that
+    violates FFmpeg's license, and neither failure shows up until a user hits
+    it.
+    """
+    if not path.exists():
+        raise SystemExit(f"\nBUILD ABORTED: {path} is missing.\n{remedy}\n")
+    return path
+
+
+ffmpeg = _require(
+    project_root / "tools" / "ffmpeg.exe",
+    "Run: powershell -ExecutionPolicy Bypass -File .\\scripts\\get-ffmpeg.ps1",
+)
+portable_binaries.append((str(ffmpeg), "tools"))
+
+ffmpeg_license = _require(
+    project_root / "tools" / "FFMPEG-LICENSE.txt",
+    "FFmpeg is GPL-licensed and its license text must ship with the binary.\n"
+    "Run: powershell -ExecutionPolicy Bypass -File .\\scripts\\get-ffmpeg.ps1 -Force",
+)
+portable_data.append((str(ffmpeg_license), "tools"))
+
+source_offer = _require(
+    project_root / "tools" / "FFMPEG-SOURCE-OFFER.txt",
+    "GPL section 6 requires a written offer for FFmpeg's source to ship with the binary.",
+)
+portable_data.append((str(source_offer), "tools"))
 
 for name in ("LICENSE", "LICENSE-THIRD-PARTY.md"):
-    document = project_root / name
-    if not document.exists():
-        raise SystemExit(f"Required license document is missing: {document}")
-    portable_data.append((str(document), "."))
+    portable_data.append(
+        (str(_require(project_root / name, f"{name} must exist before building.")), ".")
+    )
 
-source_offer = project_root / "tools" / "FFMPEG-SOURCE-OFFER.txt"
-if source_offer.exists():
-    portable_data.append((str(source_offer), "tools"))
+portable_data.append(
+    (
+        str(_require(project_root / "ffmpeg.lock.json", "The FFmpeg lockfile must ship with the build.")),
+        ".",
+    )
+)
 
 a = Analysis(
     [str(project_root / "main.py")],
