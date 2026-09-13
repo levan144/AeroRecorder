@@ -112,5 +112,69 @@ class RepositoryLockfileTests(unittest.TestCase):
         self.assertTrue(lock.url.startswith("https://"))
 
 
+class DiscoveryOrderTests(unittest.TestCase):
+    """Where the application looks for ffmpeg.exe, and in what order."""
+
+    def _patched(self, app_dir: str, local_dir: str, which: str | None):
+        import os
+        from unittest.mock import patch
+
+        return (
+            patch("aero_recorder.recorder.application_root", return_value=Path(app_dir)),
+            patch.dict(os.environ, {"LOCALAPPDATA": local_dir}),
+            patch("aero_recorder.recorder.shutil.which", return_value=which),
+        )
+
+    def test_user_override_is_searched_before_path(self) -> None:
+        from aero_recorder.recorder import find_ffmpeg
+
+        with tempfile.TemporaryDirectory() as app_dir, tempfile.TemporaryDirectory() as local_dir:
+            override = Path(local_dir) / "AeroRecorder" / "ffmpeg.exe"
+            override.parent.mkdir(parents=True)
+            override.write_text("", encoding="utf-8")
+            p1, p2, p3 = self._patched(app_dir, local_dir, "C:\\elsewhere\\ffmpeg.exe")
+            with p1, p2, p3:
+                self.assertEqual(find_ffmpeg(), override)
+
+    def test_bundled_binary_wins_over_the_user_override(self) -> None:
+        from aero_recorder.recorder import find_ffmpeg
+
+        with tempfile.TemporaryDirectory() as app_dir, tempfile.TemporaryDirectory() as local_dir:
+            bundled = Path(app_dir) / "tools" / "ffmpeg.exe"
+            bundled.parent.mkdir(parents=True)
+            bundled.write_text("", encoding="utf-8")
+            override = Path(local_dir) / "AeroRecorder" / "ffmpeg.exe"
+            override.parent.mkdir(parents=True)
+            override.write_text("", encoding="utf-8")
+            p1, p2, p3 = self._patched(app_dir, local_dir, None)
+            with p1, p2, p3:
+                self.assertEqual(find_ffmpeg(), bundled)
+
+    def test_path_is_the_last_resort(self) -> None:
+        from aero_recorder.recorder import find_ffmpeg
+
+        with tempfile.TemporaryDirectory() as app_dir, tempfile.TemporaryDirectory() as local_dir:
+            p1, p2, p3 = self._patched(app_dir, local_dir, "C:\\on-path\\ffmpeg.exe")
+            with p1, p2, p3:
+                self.assertEqual(find_ffmpeg(), Path("C:\\on-path\\ffmpeg.exe"))
+
+    def test_nothing_found_returns_none(self) -> None:
+        from aero_recorder.recorder import find_ffmpeg
+
+        with tempfile.TemporaryDirectory() as app_dir, tempfile.TemporaryDirectory() as local_dir:
+            p1, p2, p3 = self._patched(app_dir, local_dir, None)
+            with p1, p2, p3:
+                self.assertIsNone(find_ffmpeg())
+
+    def test_missing_ffmpeg_error_names_the_override_location(self) -> None:
+        """The error must say WHERE to put the file, not just that it is missing."""
+        from aero_recorder.recorder import missing_ffmpeg_message
+
+        message = missing_ffmpeg_message()
+        self.assertIn("AeroRecorder", message)
+        self.assertIn("ffmpeg.exe", message)
+        self.assertNotIn("tools folder", message)
+
+
 if __name__ == "__main__":
     unittest.main()

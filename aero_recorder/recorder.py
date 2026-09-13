@@ -21,6 +21,19 @@ from .winapi import set_process_suspended
 CREATE_NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 
 
+def user_ffmpeg_override() -> Path | None:
+    """Where a user may place their own ffmpeg.exe without rebuilding.
+
+    Sits after the bundled copy so a shipped build always uses the binary it
+    was tested with, but ahead of PATH so a deliberate override beats
+    whatever happens to be installed system-wide.
+    """
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if not local_app_data:
+        return None
+    return Path(local_app_data) / "AeroRecorder" / "ffmpeg.exe"
+
+
 def find_ffmpeg() -> Path | None:
     root = application_root()
     candidates = [
@@ -30,11 +43,27 @@ def find_ffmpeg() -> Path | None:
     bundle_root = getattr(sys, "_MEIPASS", None)
     if bundle_root:
         candidates.insert(0, Path(bundle_root) / "tools" / "ffmpeg.exe")
+    override = user_ffmpeg_override()
+    if override is not None:
+        candidates.append(override)
     for candidate in candidates:
         if candidate.is_file():
             return candidate
     located = shutil.which("ffmpeg")
     return Path(located) if located else None
+
+
+def missing_ffmpeg_message() -> str:
+    """An actionable explanation for when no ffmpeg.exe can be found."""
+    override = user_ffmpeg_override()
+    location = str(override) if override else "%LOCALAPPDATA%\\AeroRecorder\\ffmpeg.exe"
+    return (
+        "FFmpeg was not found, so recording is not possible.\n\n"
+        "AeroRecorder normally ships with FFmpeg. If this copy did not, "
+        "place ffmpeg.exe at:\n\n"
+        f"    {location}\n\n"
+        "then restart AeroRecorder."
+    )
 
 
 def parse_microphone_devices(output: str) -> list[str]:
@@ -352,9 +381,7 @@ class Recorder:
             raise RuntimeError("A recording is already in progress.")
         self.ffmpeg = find_ffmpeg()
         if not self.ffmpeg:
-            raise FileNotFoundError(
-                "FFmpeg was not found. Place ffmpeg.exe in the tools folder."
-            )
+            raise FileNotFoundError(missing_ffmpeg_message())
 
         options.output_path.parent.mkdir(parents=True, exist_ok=True)
         gif_output = options.output_format == "GIF"
