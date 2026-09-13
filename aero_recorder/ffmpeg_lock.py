@@ -15,7 +15,6 @@ from pathlib import Path
 
 from .runtime import application_root
 
-
 LOCKFILE_NAME = "ffmpeg.lock.json"
 REQUIRED_FIELDS = (
     "version",
@@ -83,9 +82,7 @@ def load_lock(path: Path | None = None) -> FFmpegLock:
 
     missing = [field for field in REQUIRED_FIELDS if field not in payload]
     if missing:
-        raise LockfileError(
-            f"{location} is missing required field(s): {', '.join(missing)}"
-        )
+        raise LockfileError(f"{location} is missing required field(s): {', '.join(missing)}")
 
     digest = str(payload["sha256"]).strip().lower()
     if not SHA256_PATTERN.match(digest):

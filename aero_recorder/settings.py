@@ -5,8 +5,8 @@ import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from .winapi import get_videos_folder
 from .runtime import is_portable, portable_data_folder
+from .winapi import get_videos_folder
 
 
 @dataclass(slots=True)
@@ -40,15 +40,13 @@ class AppSettings:
     window_geometry: str = "1120x760"
 
     @classmethod
-    def defaults(cls) -> "AppSettings":
+    def defaults(cls) -> AppSettings:
         return cls(output_folder=str(get_videos_folder() / "AeroRecorder"))
 
 
 class SettingsStore:
     def __init__(self, path: Path | None = None) -> None:
-        local_app_data = Path(
-            os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")
-        )
+        local_app_data = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
         default_path = (
             portable_data_folder() / "settings.json"
             if is_portable()

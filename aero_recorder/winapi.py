@@ -8,7 +8,6 @@ from pathlib import Path
 
 from .models import CaptureRegion, DisplayMonitor, WindowTarget
 
-
 DWMWA_USE_IMMERSIVE_DARK_MODE = 20
 DWMWA_WINDOW_CORNER_PREFERENCE = 33
 DWMWA_EXTENDED_FRAME_BOUNDS = 9
@@ -33,7 +32,7 @@ class GUID(ctypes.Structure):
     ]
 
     @classmethod
-    def from_uuid(cls, value: uuid.UUID) -> "GUID":
+    def from_uuid(cls, value: uuid.UUID) -> GUID:
         raw = value.bytes_le
         return cls.from_buffer_copy(raw)
 

@@ -12,6 +12,13 @@ from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
+from . import __version__
+from .audio_levels import AudioLevelMonitor
+from .countdown import CountdownOverlay
+from .encoders import ENCODER_CHOICES
+from .hotkeys import Hotkey, HotkeyPoller, focus_allows_hotkeys
+from .icons import draw_icon
+from .licenses import LICENSE_FILES, license_document
 from .models import (
     CaptureRegion,
     DisplayMonitor,
@@ -21,10 +28,6 @@ from .models import (
     RecordingResult,
     WindowTarget,
 )
-from .audio_levels import AudioLevelMonitor
-from .countdown import CountdownOverlay
-from .encoders import ENCODER_CHOICES
-from .hotkeys import Hotkey, HotkeyPoller, focus_allows_hotkeys
 from .mouse_effects import MouseEffectsOverlay
 from .presets import PRESETS, get_preset
 from .recorder import Recorder, find_ffmpeg, list_microphones, list_webcams
@@ -34,12 +37,12 @@ from .recordings import (
     format_file_size,
     open_recording,
     probe_recording,
-    reveal_recording,
     rename_recording,
+    reveal_recording,
     scan_recordings,
 )
 from .region_selector import RegionSelector
-from .settings import AppSettings, SettingsStore
+from .settings import SettingsStore
 from .system_audio import SystemAudioDevice, list_system_audio_devices
 from .theme import (
     COLORS,
@@ -52,11 +55,8 @@ from .theme import (
     create_app_icon,
 )
 from .tray import SystemTrayIcon
-from . import __version__
-from .icons import draw_icon
-from .watchdog import MainLoopWatchdog
-from .licenses import LICENSE_FILES, license_document
 from .updates import UpdateInfo, check_latest_release
+from .watchdog import MainLoopWatchdog
 from .winapi import (
     apply_windows_11_window_style,
     get_virtual_screen,
@@ -66,7 +66,7 @@ from .window_selector import WindowSelector
 
 
 class RecordingPill:
-    def __init__(self, app: "AeroRecorderApp", started_at: float) -> None:
+    def __init__(self, app: AeroRecorderApp, started_at: float) -> None:
         self.app = app
         self.started_at = started_at
         self.paused_at: float | None = None
@@ -149,7 +149,9 @@ class RecordingPill:
         elapsed = max(0, int(now - self.started_at - self.paused_total - active_pause))
         hours, remainder = divmod(elapsed, 3600)
         minutes, seconds = divmod(remainder, 60)
-        value = f"{hours:02d}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes:02d}:{seconds:02d}"
+        value = (
+            f"{hours:02d}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes:02d}:{seconds:02d}"
+        )
         self.timer_label.configure(text=value)
         self.window.after(250, self._tick)
 
@@ -163,7 +165,9 @@ class RecordingPill:
         elapsed = max(0, int(now - self.started_at - self.paused_total - active_pause))
         hours, remainder = divmod(elapsed, 3600)
         minutes, seconds = divmod(remainder, 60)
-        final = f"{hours:02d}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes:02d}:{seconds:02d}"
+        final = (
+            f"{hours:02d}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes:02d}:{seconds:02d}"
+        )
         try:
             self.timer_label.configure(text=final, fg=COLORS["text_muted"])
         except tk.TclError:
@@ -249,9 +253,7 @@ class AeroRecorderApp:
         self.preset_var = tk.StringVar(value=self.settings.recording_preset)
         self.microphone_var = tk.StringVar(value=self.settings.microphone)
         self.microphone_enabled_var = tk.BooleanVar(value=self.settings.microphone_enabled)
-        self.noise_reduction_var = tk.BooleanVar(
-            value=self.settings.microphone_noise_reduction
-        )
+        self.noise_reduction_var = tk.BooleanVar(value=self.settings.microphone_noise_reduction)
         self.system_audio_var = tk.StringVar(value=self.settings.system_audio_device)
         self.system_audio_enabled_var = tk.BooleanVar(value=self.settings.system_audio_enabled)
         self.microphone_level_var = tk.DoubleVar(value=0.0)
@@ -926,9 +928,7 @@ class AeroRecorderApp:
             style="Aero.TCombobox",
         )
         self.privacy_effect_combo.pack(side="right")
-        self.privacy_effect_combo.bind(
-            "<<ComboboxSelected>>", lambda _event: self._save_settings()
-        )
+        self.privacy_effect_combo.bind("<<ComboboxSelected>>", lambda _event: self._save_settings())
         mask_actions = tk.Frame(target_inner, bg=COLORS["surface"])
         mask_actions.pack(fill="x", pady=(7, 0))
         FluentButton(
@@ -1244,7 +1244,9 @@ class AeroRecorderApp:
         )
         status_orb.pack(side="left", padx=(2, 10))
         status_orb.create_oval(3, 3, 39, 39, fill=COLORS["accent_soft"], outline=COLORS["accent"])
-        status_orb.create_arc(10, 10, 32, 32, start=20, extent=285, outline=COLORS["violet"], width=2)
+        status_orb.create_arc(
+            10, 10, 32, 32, start=20, extent=285, outline=COLORS["violet"], width=2
+        )
         status_orb.create_oval(17, 17, 25, 25, fill=COLORS["danger"], outline="")
         hero_text = tk.Frame(dock_inner, bg=COLORS["surface"])
         hero_text.pack(side="left", fill="both", expand=True)
@@ -1282,7 +1284,9 @@ class AeroRecorderApp:
 
     def _build_recorder_page_legacy(self) -> tk.Frame:
         page = tk.Frame(self.content, bg=COLORS["window"], padx=34, pady=30)
-        self._page_header(page, "Screen recorder", "Capture your screen and microphone without the clutter.")
+        self._page_header(
+            page, "Screen recorder", "Capture your screen and microphone without the clutter."
+        )
 
         if not find_ffmpeg():
             self.ffmpeg_banner = tk.Frame(page, bg=COLORS["warning_soft"], padx=16, pady=12)
@@ -1315,7 +1319,9 @@ class AeroRecorderApp:
         hero = self._card(page, padding=22)
         hero.pack(fill="x", pady=(0, 16))
         hero_inner = hero.inner  # type: ignore[attr-defined]
-        status_icon = tk.Canvas(hero_inner, width=58, height=58, bg=COLORS["surface"], highlightthickness=0)
+        status_icon = tk.Canvas(
+            hero_inner, width=58, height=58, bg=COLORS["surface"], highlightthickness=0
+        )
         status_icon.pack(side="left")
         status_icon.create_oval(2, 2, 56, 56, fill=COLORS["surface_alt"], outline=COLORS["border"])
         status_icon.create_oval(19, 19, 39, 39, fill=COLORS["danger"], outline="")
@@ -1359,7 +1365,9 @@ class AeroRecorderApp:
         target = self._card(grid)
         target.grid(row=0, column=0, sticky="nsew", padx=(0, 8), pady=(0, 8))
         target_inner = target.inner  # type: ignore[attr-defined]
-        self._section_title(target_inner, "Capture target", "Choose everything or select a precise area.")
+        self._section_title(
+            target_inner, "Capture target", "Choose everything or select a precise area."
+        )
         modes = tk.Frame(target_inner, bg=COLORS["surface_alt"], padx=4, pady=4)
         modes.pack(fill="x", pady=(16, 12))
         self.mode_buttons: dict[str, tk.Button] = {}
@@ -1396,9 +1404,7 @@ class AeroRecorderApp:
             style="Aero.TCombobox",
         )
         self.monitor_combo.pack(side="left", fill="x", expand=True)
-        self.monitor_combo.bind(
-            "<<ComboboxSelected>>", lambda _event: self._monitor_changed()
-        )
+        self.monitor_combo.bind("<<ComboboxSelected>>", lambda _event: self._monitor_changed())
         FluentButton(
             monitor_row,
             "↻",
@@ -1420,9 +1426,7 @@ class AeroRecorderApp:
             style="Aero.TCombobox",
         )
         self.privacy_effect_combo.pack(side="left")
-        self.privacy_effect_combo.bind(
-            "<<ComboboxSelected>>", lambda _event: self._save_settings()
-        )
+        self.privacy_effect_combo.bind("<<ComboboxSelected>>", lambda _event: self._save_settings())
         FluentButton(
             privacy_row,
             "Add mask",
@@ -1584,7 +1588,9 @@ class AeroRecorderApp:
         quality = self._card(grid)
         quality.grid(row=1, column=0, sticky="nsew", padx=(0, 8), pady=(8, 0))
         quality_inner = quality.inner  # type: ignore[attr-defined]
-        self._section_title(quality_inner, "Recording quality", "Balanced is ideal for most recordings.")
+        self._section_title(
+            quality_inner, "Recording quality", "Balanced is ideal for most recordings."
+        )
         preset_row = tk.Frame(quality_inner, bg=COLORS["surface"])
         preset_row.pack(fill="x", pady=(16, 0))
         tk.Label(
@@ -1627,9 +1633,7 @@ class AeroRecorderApp:
             style="Aero.TCombobox",
         )
         self.fps_combo.pack(side="left", padx=(8, 0))
-        self.fps_combo.bind(
-            "<<ComboboxSelected>>", lambda _event: self._manual_quality_changed()
-        )
+        self.fps_combo.bind("<<ComboboxSelected>>", lambda _event: self._manual_quality_changed())
         tk.Label(
             quality_row,
             text="FPS",
@@ -1676,9 +1680,7 @@ class AeroRecorderApp:
             style="Aero.TCombobox",
         )
         self.output_format_combo.pack(side="right")
-        self.output_format_combo.bind(
-            "<<ComboboxSelected>>", lambda _event: self._format_changed()
-        )
+        self.output_format_combo.bind("<<ComboboxSelected>>", lambda _event: self._format_changed())
         self.gif_duration_combo = ttk.Combobox(
             format_row,
             textvariable=self.gif_duration_var,
@@ -1688,9 +1690,7 @@ class AeroRecorderApp:
             style="Aero.TCombobox",
         )
         self.gif_duration_combo.pack(side="right", padx=(0, 8))
-        self.gif_duration_combo.bind(
-            "<<ComboboxSelected>>", lambda _event: self._save_settings()
-        )
+        self.gif_duration_combo.bind("<<ComboboxSelected>>", lambda _event: self._save_settings())
         tk.Label(
             format_row,
             text="GIF seconds",
@@ -1734,7 +1734,9 @@ class AeroRecorderApp:
         destination = self._card(grid)
         destination.grid(row=1, column=1, sticky="nsew", padx=(8, 0), pady=(8, 0))
         destination_inner = destination.inner  # type: ignore[attr-defined]
-        self._section_title(destination_inner, "Save location", "New recordings appear here automatically.")
+        self._section_title(
+            destination_inner, "Save location", "New recordings appear here automatically."
+        )
         self.folder_label = tk.Label(
             destination_inner,
             text=self.settings.output_folder,
@@ -1816,7 +1818,9 @@ class AeroRecorderApp:
         self.recordings_tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
         self.recordings_tree.bind("<Double-1>", lambda _event: self.play_selected())
-        self.recordings_tree.bind("<<TreeviewSelect>>", lambda _event: self._update_library_actions())
+        self.recordings_tree.bind(
+            "<<TreeviewSelect>>", lambda _event: self._update_library_actions()
+        )
 
         preview = tk.Frame(inner, width=290, bg=COLORS["surface_alt"], padx=18, pady=18)
         preview.pack(side="right", fill="y", before=list_frame)
@@ -2118,8 +2122,7 @@ class AeroRecorderApp:
         tk.Label(
             about_text,
             text=(
-                f"Version {__version__} — free for personal use, "
-                "commercial use is not permitted."
+                f"Version {__version__} — free for personal use, commercial use is not permitted."
             ),
             bg=COLORS["surface"],
             fg=COLORS["text_muted"],
@@ -2180,9 +2183,7 @@ class AeroRecorderApp:
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def _apply_update_check(
-        self, update: UpdateInfo | None, error: str, manual: bool
-    ) -> None:
+    def _apply_update_check(self, update: UpdateInfo | None, error: str, manual: bool) -> None:
         # Every dialog below goes through _alert, which defers it out of the
         # UI queue pump. Opening a modal directly here would stall the pump,
         # and would stall it permanently whenever the main window happens to
@@ -2269,11 +2270,7 @@ class AeroRecorderApp:
 
     def _select_saved_monitor(self) -> None:
         selected = next(
-            (
-                item
-                for item in self.monitors
-                if item.device == self.settings.monitor_device
-            ),
+            (item for item in self.monitors if item.device == self.settings.monitor_device),
             self.monitors[0] if self.monitors else None,
         )
         self.monitor_var.set(selected.label if selected else "No display found")
@@ -2643,7 +2640,9 @@ class AeroRecorderApp:
             monitor = self._selected_monitor()
             if monitor is None:
                 self.start_pending = False
-                messagebox.showwarning("No display found", "Refresh the display list and try again.", parent=self.root)
+                messagebox.showwarning(
+                    "No display found", "Refresh the display list and try again.", parent=self.root
+                )
                 return
             self._start_after_countdown(monitor.region)
         else:
@@ -2962,9 +2961,7 @@ class AeroRecorderApp:
         self.preview_image = None
         self._show_preview_text("Select a recording")
         self.preview_title.configure(text="No recording selected")
-        self.preview_details.configure(
-            text="Duration  —\nResolution  —\nRecorded  —\nSize  —"
-        )
+        self.preview_details.configure(text="Duration  —\nResolution  —\nRecorded  —\nSize  —")
 
     def _load_recording_preview(self, path: Path | None) -> None:
         if path is None or not hasattr(self, "preview_image_label"):

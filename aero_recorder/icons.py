@@ -28,7 +28,7 @@ def _stroke(size: float) -> float:
     return max(1.0, round(size / 13.0))
 
 
-def draw_capture(canvas: "tk.Canvas", size: float, color: str) -> None:
+def draw_capture(canvas: tk.Canvas, size: float, color: str) -> None:
     """A camera body with a lens, for the capture page."""
     width = _stroke(size)
     # Body
@@ -76,7 +76,7 @@ def draw_capture(canvas: "tk.Canvas", size: float, color: str) -> None:
     )
 
 
-def draw_library(canvas: "tk.Canvas", size: float, color: str) -> None:
+def draw_library(canvas: tk.Canvas, size: float, color: str) -> None:
     """A film strip, for the recordings library."""
     width = _stroke(size)
     canvas.create_rectangle(
@@ -118,7 +118,7 @@ def draw_library(canvas: "tk.Canvas", size: float, color: str) -> None:
     )
 
 
-def draw_setup(canvas: "tk.Canvas", size: float, color: str) -> None:
+def draw_setup(canvas: tk.Canvas, size: float, color: str) -> None:
     """Sliders, for the settings page.
 
     Sliders rather than the usual gear: they read more clearly than a cog at
@@ -155,7 +155,7 @@ ICON_DRAWERS: dict[str, IconDrawer] = {
 }
 
 
-def draw_icon(canvas: "tk.Canvas", name: str, size: float, color: str) -> None:
+def draw_icon(canvas: tk.Canvas, name: str, size: float, color: str) -> None:
     """Clear the canvas and draw ``name`` in ``color``.
 
     An unknown name leaves the canvas empty rather than raising, so a typo in

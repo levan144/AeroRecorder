@@ -11,7 +11,6 @@ from aero_recorder.ffmpeg_lock import (
     load_lock,
 )
 
-
 VALID = {
     "version": "7.1",
     "build": "test-build-1",

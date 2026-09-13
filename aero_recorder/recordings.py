@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import re
-import hashlib
 import subprocess
 from pathlib import Path
 
 from .models import RecordingEntry, RecordingMetadata
-
 
 CREATE_NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 
@@ -94,13 +93,9 @@ reusing ones at the old size.
 """
 
 
-def create_thumbnail(
-    ffmpeg: Path, path: Path, width: int = THUMBNAIL_WIDTH
-) -> Path | None:
+def create_thumbnail(ffmpeg: Path, path: Path, width: int = THUMBNAIL_WIDTH) -> Path | None:
     try:
-        fingerprint = (
-            f"{path.resolve()}|{path.stat().st_mtime_ns}|w{width}".encode("utf-8")
-        )
+        fingerprint = f"{path.resolve()}|{path.stat().st_mtime_ns}|w{width}".encode()
     except OSError:
         return None
     cache = path.parent / ".aerorecorder-thumbnails"
@@ -154,7 +149,7 @@ def rename_recording(path: Path, requested_name: str) -> Path:
     if name.lower().endswith(path.suffix.lower()):
         name = name[: -len(path.suffix)].rstrip(". ")
     if not name or re.search(r'[<>:"/\\|?*]', name):
-        raise ValueError("Use a file name without < > : \" / \\ | ? or * characters.")
+        raise ValueError('Use a file name without < > : " / \\ | ? or * characters.')
     destination = path.with_name(f"{name}{path.suffix}")
     if destination == path:
         return path

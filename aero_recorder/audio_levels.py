@@ -14,7 +14,6 @@ from typing import Any
 
 from .runtime import application_root
 
-
 METER_SAMPLES_PER_SECOND = 30
 """Upper bound on meter updates per second.
 
@@ -219,8 +218,7 @@ def run_audio_meter_worker(payload: str) -> int:
     streams: list[tuple[str, Any]] = []
     try:
         devices = [
-            audio.get_device_info_by_index(index)
-            for index in range(audio.get_device_count())
+            audio.get_device_info_by_index(index) for index in range(audio.get_device_count())
         ]
         host_api_names = {
             index: str(audio.get_host_api_info_by_index(index).get("name", ""))

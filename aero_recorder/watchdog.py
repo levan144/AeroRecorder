@@ -20,7 +20,6 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
-
 DEFAULT_STALL_SECONDS = 6.0
 DEFAULT_POLL_SECONDS = 2.0
 # Avoid filling the disk if the loop stays wedged.
@@ -64,9 +63,7 @@ class MainLoopWatchdog:
         if self._thread is not None:
             return
         self._main_thread_id = threading.get_ident()
-        self._thread = threading.Thread(
-            target=self._run, name="AeroRecorderWatchdog", daemon=True
-        )
+        self._thread = threading.Thread(target=self._run, name="AeroRecorderWatchdog", daemon=True)
         self._thread.start()
 
     def stop(self) -> None:

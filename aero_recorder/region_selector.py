@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import tkinter as tk
-from typing import Callable
+from collections.abc import Callable
 
 from .models import CaptureRegion
 from .winapi import get_virtual_screen

@@ -150,7 +150,7 @@ class UiQueuePumpTests(unittest.TestCase):
     def test_a_flood_of_levels_does_not_starve_other_callbacks(self) -> None:
         seen: list[str] = []
         self.app._ui_queue.put(lambda: seen.append("important"))
-        for index in range(20000):
+        for _ in range(20000):
             self.app._audio_levels_from_thread(0.5, 0.5)
         self._settle()
         self.assertEqual(
@@ -199,9 +199,7 @@ class UiQueuePumpTests(unittest.TestCase):
         original = uimod.messagebox.showerror
         uimod.messagebox.showerror = lambda *a, **k: "ok"
         try:
-            self.app._ui_queue.put(
-                lambda: self.app._alert("error", "Title", "Message")
-            )
+            self.app._ui_queue.put(lambda: self.app._alert("error", "Title", "Message"))
             self._settle()
             seen: list[str] = []
             self.app._ui_queue.put(lambda: seen.append("alive"))

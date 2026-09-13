@@ -10,7 +10,6 @@ from ctypes import wintypes
 
 from .single_instance import show_window_message
 
-
 WM_APP = 0x8000
 WM_CLOSE = 0x0010
 WM_DESTROY = 0x0002
@@ -37,7 +36,7 @@ class GUID(ctypes.Structure):
     ]
 
     @classmethod
-    def from_uuid(cls, value: uuid.UUID) -> "GUID":
+    def from_uuid(cls, value: uuid.UUID) -> GUID:
         return cls.from_buffer_copy(value.bytes_le)
 
 

@@ -6,7 +6,6 @@ import subprocess
 from functools import lru_cache
 from pathlib import Path
 
-
 CREATE_NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 
 ENCODER_CODECS = {

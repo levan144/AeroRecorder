@@ -3,9 +3,8 @@ from __future__ import annotations
 import ctypes
 import os
 import tkinter as tk
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
-
 
 MODIFIER_CODES = {
     "Ctrl": 0x11,
@@ -41,7 +40,7 @@ class Hotkey:
         return "+".join((*self.modifiers, self.key_name))
 
     @classmethod
-    def parse(cls, value: str) -> "Hotkey":
+    def parse(cls, value: str) -> Hotkey:
         parts = [part.strip() for part in value.split("+") if part.strip()]
         if len(parts) < 2:
             raise ValueError("Use at least one modifier, for example Ctrl+Shift+R.")

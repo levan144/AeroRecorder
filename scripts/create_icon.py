@@ -5,7 +5,6 @@ import struct
 import zlib
 from pathlib import Path
 
-
 SIZES = (16, 24, 32, 48, 64, 128, 256)
 ACCENT = (96, 205, 255, 255)
 DANGER = (255, 107, 107, 255)

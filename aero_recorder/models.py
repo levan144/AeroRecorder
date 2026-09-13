@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass(frozen=True, slots=True)
@@ -12,7 +11,7 @@ class CaptureRegion:
     width: int
     height: int
 
-    def normalized_for_video(self) -> "CaptureRegion":
+    def normalized_for_video(self) -> CaptureRegion:
         """Return an H.264-friendly region with positive, even dimensions."""
         width = max(2, self.width - (self.width % 2))
         height = max(2, self.height - (self.height % 2))
@@ -56,15 +55,15 @@ class RecordingOptions:
     video_encoder: str = "Auto"
     output_format: str = "MP4"
     include_cursor: bool = True
-    microphone: Optional[str] = None
+    microphone: str | None = None
     microphone_noise_reduction: bool = False
-    system_audio_device: Optional[str] = None
-    webcam: Optional[str] = None
+    system_audio_device: str | None = None
+    webcam: str | None = None
     webcam_shape: str = "Circle"
     webcam_position: str = "Bottom right"
     webcam_size: str = "Medium"
     privacy_masks: tuple[PrivacyMask, ...] = ()
-    region: Optional[CaptureRegion] = None
+    region: CaptureRegion | None = None
 
 
 @dataclass(frozen=True, slots=True)

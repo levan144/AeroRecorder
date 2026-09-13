@@ -8,11 +8,8 @@ from dataclasses import dataclass
 
 from . import __version__
 
-
 GITHUB_REPOSITORY = "levan144/AeroRecorder"
-LATEST_RELEASE_API = (
-    f"https://api.github.com/repos/{GITHUB_REPOSITORY}/releases/latest"
-)
+LATEST_RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPOSITORY}/releases/latest"
 RELEASES_PAGE_URL = f"https://github.com/{GITHUB_REPOSITORY}/releases/latest"
 
 
@@ -32,9 +29,9 @@ def is_newer_version(candidate: str, current: str = __version__) -> bool:
     candidate_parts = version_tuple(candidate)
     current_parts = version_tuple(current)
     length = max(len(candidate_parts), len(current_parts))
-    return candidate_parts + (0,) * (length - len(candidate_parts)) > current_parts + (
-        0,
-    ) * (length - len(current_parts))
+    return candidate_parts + (0,) * (length - len(candidate_parts)) > current_parts + (0,) * (
+        length - len(current_parts)
+    )
 
 
 def check_latest_release(timeout: float = 8.0) -> UpdateInfo | None:

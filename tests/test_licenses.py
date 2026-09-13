@@ -49,9 +49,7 @@ class LicenseDiscoveryTests(unittest.TestCase):
     def test_license_document_returns_title_and_text(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "LICENSE-THIRD-PARTY.md").write_text(
-                "# Third-Party", encoding="utf-8"
-            )
+            (root / "LICENSE-THIRD-PARTY.md").write_text("# Third-Party", encoding="utf-8")
             with patch("aero_recorder.licenses.application_root", return_value=root):
                 title, text = license_document("LICENSE-THIRD-PARTY.md")
         self.assertEqual(title, "Third-party licenses")
@@ -80,7 +78,6 @@ class RepositoryLicenseTests(unittest.TestCase):
 
 class VersionSourceTests(unittest.TestCase):
     def test_version_is_semver(self) -> None:
-        import re
 
         from aero_recorder import __version__
 
@@ -95,9 +92,7 @@ class VersionSourceTests(unittest.TestCase):
     def test_installer_script_does_not_hardcode_a_version(self) -> None:
         from aero_recorder.runtime import application_root
 
-        script = (application_root() / "installer" / "AeroRecorder.iss").read_text(
-            encoding="utf-8"
-        )
+        script = (application_root() / "installer" / "AeroRecorder.iss").read_text(encoding="utf-8")
         self.assertNotIn('#define MyAppVersion "', script)
         self.assertIn("MyAppVersion", script)
 

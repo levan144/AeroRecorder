@@ -7,9 +7,7 @@ from .models import WindowTarget
 from .winapi import get_virtual_screen, list_visible_windows
 
 
-def window_at_point(
-    targets: Sequence[WindowTarget], x: int, y: int
-) -> WindowTarget | None:
+def window_at_point(targets: Sequence[WindowTarget], x: int, y: int) -> WindowTarget | None:
     for target in targets:
         region = target.region
         if region.x <= x < region.x + region.width and region.y <= y < region.y + region.height:

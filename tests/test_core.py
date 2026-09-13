@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import sys
 import tempfile
 import unittest
-import sys
 import urllib.error
 from array import array
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from aero_recorder.audio_levels import AudioLevelMonitor, best_input_device, pcm_level
+from aero_recorder.encoders import build_encoder_arguments, parse_encoder_list
+from aero_recorder.hotkeys import Hotkey, focus_allows_hotkeys
 from aero_recorder.models import (
     CaptureRegion,
     DisplayMonitor,
@@ -15,6 +18,8 @@ from aero_recorder.models import (
     RecordingOptions,
     WindowTarget,
 )
+from aero_recorder.mouse_effects import PULSE_DURATION, pulse_radius
+from aero_recorder.presets import PRESETS, get_preset
 from aero_recorder.recorder import (
     build_ffmpeg_command,
     build_gif_command,
@@ -31,15 +36,10 @@ from aero_recorder.recordings import (
     rename_recording,
     scan_recordings,
 )
-from aero_recorder.settings import AppSettings, SettingsStore
 from aero_recorder.runtime import PORTABLE_MARKER, is_portable
-from aero_recorder.window_selector import window_at_point
-from aero_recorder.hotkeys import Hotkey, focus_allows_hotkeys
-from aero_recorder.encoders import build_encoder_arguments, parse_encoder_list
-from aero_recorder.mouse_effects import PULSE_DURATION, pulse_radius
-from aero_recorder.presets import PRESETS, get_preset
+from aero_recorder.settings import AppSettings, SettingsStore
 from aero_recorder.updates import check_latest_release, is_newer_version, version_tuple
-from aero_recorder.audio_levels import AudioLevelMonitor, best_input_device, pcm_level
+from aero_recorder.window_selector import window_at_point
 
 
 class RegionTests(unittest.TestCase):
@@ -108,9 +108,7 @@ class RecorderCommandTests(unittest.TestCase):
         self.assertEqual(command[-1], "capture.mp4")
 
     def test_silent_command_has_no_audio_encoder(self) -> None:
-        command = build_ffmpeg_command(
-            Path("ffmpeg.exe"), RecordingOptions(Path("capture.mp4"))
-        )
+        command = build_ffmpeg_command(Path("ffmpeg.exe"), RecordingOptions(Path("capture.mp4")))
         self.assertNotIn("-c:a", command)
         self.assertNotIn("dshow", command)
 
@@ -248,7 +246,9 @@ class AudioLevelTests(unittest.TestCase):
         fake_process = MagicMock()
         fake_process.stdout = []
         fake_process.poll.return_value = None
-        with patch("aero_recorder.audio_levels.subprocess.Popen", return_value=fake_process) as launch:
+        with patch(
+            "aero_recorder.audio_levels.subprocess.Popen", return_value=fake_process
+        ) as launch:
             monitor = AudioLevelMonitor()
             monitor.start("Studio Microphone", None, lambda _mic, _system: None)
             monitor.stop()
@@ -287,12 +287,43 @@ class AudioLevelTests(unittest.TestCase):
         """
         # Real enumeration order and names from the machine that showed the bug.
         devices = [
-            {"index": 0, "name": "Microsoft Sound Mapper - Input", "maxInputChannels": 2, "hostApi": 0},
-            {"index": 1, "name": "Microphone Array (AMD Audio Dev", "maxInputChannels": 2, "hostApi": 0},
-            {"index": 4, "name": "Primary Sound Capture Driver", "maxInputChannels": 2, "hostApi": 1},
-            {"index": 5, "name": "Microphone Array (AMD Audio Device)", "maxInputChannels": 2, "hostApi": 1},
-            {"index": 9, "name": "Microphone Array (AMD Audio Device)", "maxInputChannels": 2, "hostApi": 2},
-            {"index": 10, "name": "Speaker (Realtek(R) Audio) [Loopback]", "maxInputChannels": 2, "hostApi": 2, "isLoopbackDevice": True},
+            {
+                "index": 0,
+                "name": "Microsoft Sound Mapper - Input",
+                "maxInputChannels": 2,
+                "hostApi": 0,
+            },
+            {
+                "index": 1,
+                "name": "Microphone Array (AMD Audio Dev",
+                "maxInputChannels": 2,
+                "hostApi": 0,
+            },
+            {
+                "index": 4,
+                "name": "Primary Sound Capture Driver",
+                "maxInputChannels": 2,
+                "hostApi": 1,
+            },
+            {
+                "index": 5,
+                "name": "Microphone Array (AMD Audio Device)",
+                "maxInputChannels": 2,
+                "hostApi": 1,
+            },
+            {
+                "index": 9,
+                "name": "Microphone Array (AMD Audio Device)",
+                "maxInputChannels": 2,
+                "hostApi": 2,
+            },
+            {
+                "index": 10,
+                "name": "Speaker (Realtek(R) Audio) [Loopback]",
+                "maxInputChannels": 2,
+                "hostApi": 2,
+                "isLoopbackDevice": True,
+            },
         ]
         host_apis = {0: "MME", 1: "Windows DirectSound", 2: "Windows WASAPI"}
         chosen = best_input_device(
@@ -402,9 +433,7 @@ class RecordingLibraryTests(unittest.TestCase):
             (folder / "two.partial.mp4").write_bytes(b"partial")
             (folder / "notes.txt").write_text("ignore", encoding="utf-8")
             recordings = scan_recordings(folder)
-            self.assertEqual(
-                {item.path.name for item in recordings}, {"one.mp4", "animation.gif"}
-            )
+            self.assertEqual({item.path.name for item in recordings}, {"one.mp4", "animation.gif"})
 
     def test_file_size_formatting(self) -> None:
         self.assertEqual(format_file_size(512), "512 B")

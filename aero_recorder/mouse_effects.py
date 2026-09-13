@@ -5,7 +5,6 @@ import tkinter as tk
 
 from .winapi import get_cursor_position, make_window_click_through, mouse_button_is_down
 
-
 TRANSPARENT = "#010203"
 WINDOW_SIZE = 110
 CENTER = WINDOW_SIZE // 2

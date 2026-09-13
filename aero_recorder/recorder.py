@@ -7,16 +7,15 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
-from typing import Callable
 
-from .models import RecordingOptions, RecordingResult
 from .encoders import build_encoder_arguments, resolve_encoder
+from .models import RecordingOptions, RecordingResult
 from .runtime import application_root
 from .system_audio import SystemAudioCapture
 from .winapi import set_process_suspended
-
 
 CREATE_NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 
@@ -146,9 +145,7 @@ def list_webcams(ffmpeg: Path | None = None) -> list[str]:
     return parse_webcam_devices(result.stderr + "\n" + result.stdout)
 
 
-def build_video_filter(
-    options: RecordingOptions, webcam_input_index: int | None = None
-) -> str:
+def build_video_filter(options: RecordingOptions, webcam_input_index: int | None = None) -> str:
     filters = [f"[0:v]setpts=N/{options.fps}/TB[screen]"]
     video_label = "screen"
     for index, mask in enumerate(options.privacy_masks):
@@ -189,10 +186,7 @@ def build_video_filter(
             "[camera]"
         )
     else:
-        camera = (
-            f"[{webcam_input_index}:v]setpts=PTS-STARTPTS,"
-            f"scale={size}:-2,format=rgba[camera]"
-        )
+        camera = f"[{webcam_input_index}:v]setpts=PTS-STARTPTS,scale={size}:-2,format=rgba[camera]"
     positions = {
         "Top left": "24:24",
         "Top right": "W-w-24:24",
@@ -391,9 +385,7 @@ class Recorder:
         )
         resolved_encoder = resolve_encoder(self.ffmpeg, options.video_encoder)
         capture_options = (
-            replace(options, microphone=None, system_audio_device=None)
-            if gif_output
-            else options
+            replace(options, microphone=None, system_audio_device=None) if gif_output else options
         )
         temporary_options = replace(
             capture_options, output_path=temporary_path, video_encoder=resolved_encoder

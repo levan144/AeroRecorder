@@ -3,7 +3,6 @@ from __future__ import annotations
 import tkinter as tk
 from collections.abc import Callable
 
-
 COLORS = {
     # Surfaces, lightest content on a faintly cool page.
     "window": "#EFF4F5",
@@ -297,7 +296,11 @@ class CaptureModeButton(tk.Canvas):
         elif self.hovered:
             fill, border, icon = COLORS["surface_hover"], COLORS["border"], COLORS["text"]
         else:
-            fill, border, icon = COLORS["surface_alt"], COLORS["border_soft"], COLORS["text_secondary"]
+            fill, border, icon = (
+                COLORS["surface_alt"],
+                COLORS["border_soft"],
+                COLORS["text_secondary"],
+            )
         rounded_rectangle(
             self,
             1,
@@ -396,9 +399,7 @@ class SignalMeter(tk.Canvas):
         if not self._rectangles:
             return
         try:
-            active = round(
-                max(0.0, min(1.0, float(self.variable.get()))) * len(self._rectangles)
-            )
+            active = round(max(0.0, min(1.0, float(self.variable.get()))) * len(self._rectangles))
         except (tk.TclError, ValueError):
             active = 0
         if active == self._last_active:

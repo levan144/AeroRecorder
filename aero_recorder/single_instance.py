@@ -31,7 +31,6 @@ import os
 from ctypes import wintypes
 from types import TracebackType
 
-
 # A fixed random suffix keeps these names from colliding with any other
 # program's objects. It must never change: both names are part of the
 # protocol between a running copy and a newly launched one.

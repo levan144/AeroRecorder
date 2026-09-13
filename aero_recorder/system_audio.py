@@ -75,7 +75,7 @@ class SystemAudioCapture:
                 input_device_index=device.index,
                 frames_per_buffer=1024,
             )
-            wave_file = wave.open(str(output_path), "wb")
+            wave_file = wave.open(str(output_path), "wb")  # noqa: SIM115 - closed in stop()
             wave_file.setnchannels(device.channels)
             wave_file.setsampwidth(audio.get_sample_size(pyaudio.paInt16))
             wave_file.setframerate(device.sample_rate)
