@@ -60,20 +60,52 @@ def enable_per_monitor_dpi_awareness() -> None:
             pass
 
 
+def top_level_window(hwnd: int) -> int:
+    """Return the real top-level window for a Tk window handle.
+
+    Tkinter's ``winfo_id()`` returns the handle of an internal child window
+    (class ``TkChild``), not the framed top-level window (class
+    ``TkTopLevel``) that owns the title bar. DWM attributes such as dark mode
+    and rounded corners only take effect on the top-level window, so applying
+    them to ``winfo_id()`` silently does nothing.
+
+    Walks up parents until it reaches a window with no parent.
+    """
+    if os.name != "nt" or not hwnd:
+        return hwnd
+    try:
+        user32 = ctypes.windll.user32
+        user32.GetParent.argtypes = [wintypes.HWND]
+        user32.GetParent.restype = wintypes.HWND
+        current = hwnd
+        # Bounded to avoid spinning on an unexpected window hierarchy.
+        for _ in range(8):
+            parent = user32.GetParent(current)
+            if not parent:
+                return current
+            current = parent
+        return current
+    except (AttributeError, OSError):
+        return hwnd
+
+
 def apply_windows_11_window_style(hwnd: int, *, exclude_from_capture: bool = False) -> None:
     if os.name != "nt" or not hwnd:
         return
+    # Capture exclusion applies to the window actually being drawn, while the
+    # DWM frame attributes apply to the framed top-level window.
+    frame_hwnd = top_level_window(hwnd)
     try:
         enabled = ctypes.c_int(1)
         rounded = ctypes.c_int(DWMWCP_ROUND)
         ctypes.windll.dwmapi.DwmSetWindowAttribute(
-            hwnd,
+            frame_hwnd,
             DWMWA_USE_IMMERSIVE_DARK_MODE,
             ctypes.byref(enabled),
             ctypes.sizeof(enabled),
         )
         ctypes.windll.dwmapi.DwmSetWindowAttribute(
-            hwnd,
+            frame_hwnd,
             DWMWA_WINDOW_CORNER_PREFERENCE,
             ctypes.byref(rounded),
             ctypes.sizeof(rounded),
