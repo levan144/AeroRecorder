@@ -202,25 +202,38 @@ def run_audio_meter_worker(payload: str) -> int:
             except Exception:
                 continue
             streams.append((kind, stream))
-        # A meter only needs to be redrawn a few dozen times a second. Without
-        # this floor, a stream whose read() fails returns instantly and the
-        # loop becomes a hot spin that emits thousands of samples per second,
-        # saturating the pipe and the reader on the other end.
-        minimum_interval = 1.0 / METER_SAMPLES_PER_SECOND
+        # Pacing comes from the reads themselves: stream.read blocks until a
+        # full buffer of audio exists, which is real time. Sleeping on top of
+        # that would consume audio more slowly than it arrives, so the device
+        # buffer would grow without bound and the reported level would fall
+        # further and further behind what the user is actually saying.
+        #
+        # Output is rate limited instead, reporting the peak seen since the
+        # last line so short sounds are never missed between reports.
+        emit_interval = 1.0 / METER_SAMPLES_PER_SECOND
+        peak = {"microphone": 0.0, "system": 0.0}
+        last_emit = 0.0
         while streams:
-            cycle_started = time.monotonic()
-            levels = {"microphone": 0.0, "system": 0.0}
+            read_failed = False
             for kind, stream in streams:
                 try:
-                    levels[kind] = pcm_level(
-                        stream.read(1024, exception_on_overflow=False)
-                    )
+                    level = pcm_level(stream.read(1024, exception_on_overflow=False))
                 except Exception:
-                    levels[kind] = 0.0
-            print(f"{levels['microphone']:.4f},{levels['system']:.4f}", flush=True)
-            remaining = minimum_interval - (time.monotonic() - cycle_started)
-            if remaining > 0:
-                time.sleep(remaining)
+                    level, read_failed = 0.0, True
+                if level > peak[kind]:
+                    peak[kind] = level
+
+            now = time.monotonic()
+            if now - last_emit >= emit_interval:
+                print(f"{peak['microphone']:.4f},{peak['system']:.4f}", flush=True)
+                last_emit = now
+                peak["microphone"] = 0.0
+                peak["system"] = 0.0
+
+            if read_failed:
+                # A failing read returns instantly, so without this the loop
+                # becomes a hot spin. Only applies when reads are not pacing.
+                time.sleep(emit_interval)
     except (BrokenPipeError, OSError):
         pass
     finally:

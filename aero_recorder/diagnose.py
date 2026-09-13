@@ -94,6 +94,23 @@ def run_diagnosis(seconds: float = 12.0) -> int:
         root.withdraw()
         app = AeroRecorderApp(root)
 
+        # Count how many level samples reach the app, and how many reach the
+        # Tk variable the meter widget is bound to.
+        counters = {"from_thread": 0, "applied": 0}
+        original_from_thread = app._audio_levels_from_thread
+        original_apply = app._apply_audio_levels
+
+        def counting_from_thread(mic: float, sysaudio: float) -> None:
+            counters["from_thread"] += 1
+            original_from_thread(mic, sysaudio)
+
+        def counting_apply(mic: float, sysaudio: float) -> None:
+            counters["applied"] += 1
+            original_apply(mic, sysaudio)
+
+        app._audio_levels_from_thread = counting_from_thread  # type: ignore[method-assign]
+        app._apply_audio_levels = counting_apply  # type: ignore[method-assign]
+
         ticks = {"count": 0}
         original_drain = app._drain_ui_queue
 
@@ -121,8 +138,9 @@ def run_diagnosis(seconds: float = 12.0) -> int:
                     f"  ticks={ticks['count']:<5}"
                     f"  queue={app._ui_queue.qsize():<3}"
                     f"  stalled={app.watchdog.stalled_for():5.2f}s"
-                    f"  mic={app.microphone_var.get()!r}"
-                    f"  cam={app.webcam_var.get()!r}"
+                    f"  lvl_in={counters['from_thread']:<5}"
+                    f"  lvl_applied={counters['applied']:<5}"
+                    f"  mic_level={app.microphone_level_var.get():.3f}"
                 )
             time.sleep(0.01)
 
