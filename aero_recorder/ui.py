@@ -503,7 +503,7 @@ class AeroRecorderApp:
         )
         style.map(
             "Aero.Treeview",
-            background=[("selected", "#243746")],
+            background=[("selected", COLORS["selection"])],
             foreground=[("selected", COLORS["text"])],
         )
         style.configure(
@@ -517,18 +517,18 @@ class AeroRecorderApp:
         style.map("Aero.Treeview.Heading", background=[("active", COLORS["surface_alt"])])
         style.configure(
             "Aero.Vertical.TScrollbar",
-            background=COLORS["surface_alt"],
-            troughcolor=COLORS["surface"],
-            bordercolor=COLORS["surface"],
-            lightcolor=COLORS["surface_alt"],
-            darkcolor=COLORS["surface_alt"],
+            background=COLORS["scroll_thumb"],
+            troughcolor=COLORS["surface_alt"],
+            bordercolor=COLORS["surface_alt"],
+            lightcolor=COLORS["scroll_thumb"],
+            darkcolor=COLORS["scroll_thumb"],
             arrowcolor=COLORS["text_muted"],
             relief="flat",
             width=11,
         )
         style.map(
             "Aero.Vertical.TScrollbar",
-            background=[("active", COLORS["surface_hover"])],
+            background=[("active", COLORS["scroll_thumb_hover"])],
         )
 
     def _poll_hotkeys(self) -> None:
@@ -673,7 +673,7 @@ class AeroRecorderApp:
 
         def on_enter(_event: tk.Event) -> None:
             if self.current_page != name:
-                self._paint_nav(name, COLORS["surface_alt"], COLORS["text"])
+                self._paint_nav(name, COLORS["surface_hover"], COLORS["text"])
 
         def on_leave(_event: tk.Event) -> None:
             if self.current_page != name:
@@ -711,7 +711,7 @@ class AeroRecorderApp:
             active = page_name == name
             self._paint_nav(
                 page_name,
-                COLORS["surface_alt"] if active else COLORS["sidebar"],
+                COLORS["accent_soft"] if active else COLORS["sidebar"],
                 COLORS["accent"] if active else COLORS["text_secondary"],
             )
         if name == "library":
@@ -782,19 +782,19 @@ class AeroRecorderApp:
         )
 
         if not find_ffmpeg():
-            self.ffmpeg_banner = tk.Frame(page, bg="#2D281B", padx=14, pady=9)
+            self.ffmpeg_banner = tk.Frame(page, bg=COLORS["warning_soft"], padx=14, pady=9)
             self.ffmpeg_banner.pack(fill="x", pady=(0, 10))
             tk.Label(
                 self.ffmpeg_banner,
                 text="ENGINE OFFLINE",
-                bg="#2D281B",
+                bg=COLORS["warning_soft"],
                 fg=COLORS["warning"],
                 font=(FONT_TEXT, 8, "bold"),
             ).pack(side="left")
             tk.Label(
                 self.ffmpeg_banner,
                 text="FFmpeg is required before capture can begin.",
-                bg="#2D281B",
+                bg=COLORS["warning_soft"],
                 fg=COLORS["text_secondary"],
                 font=(FONT_TEXT, 8),
             ).pack(side="left", padx=(12, 0))
@@ -804,7 +804,7 @@ class AeroRecorderApp:
                 self.locate_ffmpeg,
                 width=76,
                 height=30,
-                background="#2D281B",
+                background=COLORS["warning_soft"],
                 font_size=8,
             ).pack(side="right")
         else:
@@ -1285,19 +1285,19 @@ class AeroRecorderApp:
         self._page_header(page, "Screen recorder", "Capture your screen and microphone without the clutter.")
 
         if not find_ffmpeg():
-            self.ffmpeg_banner = tk.Frame(page, bg="#2D281B", padx=16, pady=12)
+            self.ffmpeg_banner = tk.Frame(page, bg=COLORS["warning_soft"], padx=16, pady=12)
             self.ffmpeg_banner.pack(fill="x", pady=(0, 16))
             tk.Label(
                 self.ffmpeg_banner,
                 text="FFmpeg is not installed yet",
-                bg="#2D281B",
+                bg=COLORS["warning_soft"],
                 fg=COLORS["warning"],
                 font=(FONT_TEXT, 10, "bold"),
             ).pack(side="left")
             tk.Label(
                 self.ffmpeg_banner,
                 text="  Add tools\\ffmpeg.exe to enable recording.",
-                bg="#2D281B",
+                bg=COLORS["warning_soft"],
                 fg=COLORS["text_secondary"],
                 font=(FONT_TEXT, 9),
             ).pack(side="left")
@@ -1307,7 +1307,7 @@ class AeroRecorderApp:
                 self.locate_ffmpeg,
                 width=88,
                 height=34,
-                background="#2D281B",
+                background=COLORS["warning_soft"],
             ).pack(side="right")
         else:
             self.ffmpeg_banner = None
@@ -1317,7 +1317,7 @@ class AeroRecorderApp:
         hero_inner = hero.inner  # type: ignore[attr-defined]
         status_icon = tk.Canvas(hero_inner, width=58, height=58, bg=COLORS["surface"], highlightthickness=0)
         status_icon.pack(side="left")
-        status_icon.create_oval(2, 2, 56, 56, fill="#202B35", outline=COLORS["border"])
+        status_icon.create_oval(2, 2, 56, 56, fill=COLORS["surface_alt"], outline=COLORS["border"])
         status_icon.create_oval(19, 19, 39, 39, fill=COLORS["danger"], outline="")
         hero_text = tk.Frame(hero_inner, bg=COLORS["surface"])
         hero_text.pack(side="left", fill="both", expand=True, padx=(16, 12))
@@ -1824,7 +1824,7 @@ class AeroRecorderApp:
         self.preview_image_label = tk.Label(
             preview,
             text="Select a recording",
-            bg="#101820",
+            bg=COLORS["surface_alt"],
             fg=COLORS["text_muted"],
             font=(FONT_TEXT, 10),
             width=30,

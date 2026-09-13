@@ -89,14 +89,21 @@ def top_level_window(hwnd: int) -> int:
         return hwnd
 
 
-def apply_windows_11_window_style(hwnd: int, *, exclude_from_capture: bool = False) -> None:
+def apply_windows_11_window_style(
+    hwnd: int, *, exclude_from_capture: bool = False, dark_titlebar: bool = False
+) -> None:
+    """Apply the Windows 11 frame treatment to a Tk window.
+
+    ``dark_titlebar`` must match the application palette. A dark title bar
+    above a light interface reads as a rendering fault rather than a style.
+    """
     if os.name != "nt" or not hwnd:
         return
     # Capture exclusion applies to the window actually being drawn, while the
     # DWM frame attributes apply to the framed top-level window.
     frame_hwnd = top_level_window(hwnd)
     try:
-        enabled = ctypes.c_int(1)
+        enabled = ctypes.c_int(1 if dark_titlebar else 0)
         rounded = ctypes.c_int(DWMWCP_ROUND)
         ctypes.windll.dwmapi.DwmSetWindowAttribute(
             frame_hwnd,

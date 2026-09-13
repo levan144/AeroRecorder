@@ -5,28 +5,38 @@ from collections.abc import Callable
 
 
 COLORS = {
-    "window": "#080B12",
-    "sidebar": "#0B1019",
-    "surface": "#111824",
-    "surface_alt": "#172131",
-    "surface_lifted": "#1B2636",
-    "surface_hover": "#202E40",
-    "border": "#29384D",
-    "border_soft": "#1D2939",
-    "text": "#F5F8FC",
-    "text_secondary": "#AAB7C8",
-    "text_muted": "#718096",
-    "accent": "#5CE1E6",
-    "accent_hover": "#7DE9ED",
-    "accent_pressed": "#42C9CF",
-    "accent_soft": "#15323B",
-    "accent_text": "#041315",
-    "violet": "#8B7CFF",
-    "violet_soft": "#211F3E",
-    "danger": "#FF5878",
-    "danger_hover": "#FF7892",
-    "success": "#62E6A7",
-    "warning": "#F6C85F",
+    # Surfaces, lightest content on a faintly cool page.
+    "window": "#EFF4F5",
+    "sidebar": "#FFFFFF",
+    "surface": "#FFFFFF",
+    "surface_alt": "#F6FAFB",
+    "surface_lifted": "#FFFFFF",
+    "surface_hover": "#EDF4F5",
+    "border": "#E4EBED",
+    "border_soft": "#DEE6E9",
+    # Text, dark slate rather than pure black so large headings stay soft.
+    "text": "#16272E",
+    "text_secondary": "#5B6F78",
+    "text_muted": "#93A2A9",
+    # Teal accent.
+    "accent": "#0F9C8E",
+    "accent_hover": "#12B0A1",
+    "accent_pressed": "#0B8175",
+    "accent_soft": "#E1F3F0",
+    "accent_text": "#FFFFFF",
+    "violet": "#0B7C8F",
+    "violet_soft": "#E4F1F4",
+    "danger": "#DC4C4C",
+    "danger_hover": "#E86363",
+    "success": "#24A566",
+    "warning": "#C98A1B",
+    "warning_soft": "#FDF4E3",
+    "selection": "#E1F3F0",
+    "shadow": "#D8E2E5",
+    # Scrollbar thumb needs real contrast against white; the surface tones are
+    # too close to the trough to be visible on a light background.
+    "scroll_thumb": "#C6D3D8",
+    "scroll_thumb_hover": "#AEBEC5",
 }
 
 FONT_DISPLAY = "Segoe UI Variable Display"
@@ -109,8 +119,8 @@ class FluentButton(tk.Canvas):
         if self.danger:
             fill = COLORS["danger_hover"] if state == "hover" else COLORS["danger"]
             if state == "pressed":
-                fill = "#E85D5D"
-            return fill, fill, "#1A0707"
+                fill = COLORS["danger"]
+            return fill, fill, COLORS["accent_text"]
         if self.accent:
             fill = {
                 "normal": COLORS["accent"],
