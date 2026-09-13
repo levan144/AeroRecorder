@@ -4,19 +4,25 @@ WRITTEN OFFER FOR FFMPEG SOURCE CODE
 AeroRecorder redistributes an unmodified prebuilt binary of FFmpeg, which is
 licensed under the GNU General Public License version 3 or later.
 
+The binary distributed with this copy of AeroRecorder is:
+
+    FFmpeg 9.0.1, "essentials" build, published by gyan.dev
+    Release:  https://github.com/GyanD/codexffmpeg/releases/tag/9.0.1
+    Archive:  ffmpeg-9.0.1-essentials_build.zip
+    SHA-256:  fec81ae03971d9dd4be3ebe02e263bd2ec1d789483f931bdba5f5715e65da2e9
+
 In accordance with GPL-3.0 section 6, the complete corresponding source code
-for the FFmpeg binary distributed with this copy of AeroRecorder is available
-at no charge from:
+is available at no charge from:
 
-    https://github.com/levan144/aerorecorder-ffmpeg
+    FFmpeg source:   https://github.com/FFmpeg/FFmpeg/releases/tag/n9.0.1
+    Build scripts:   https://github.com/GyanD/codexffmpeg
+    Build details:   https://www.gyan.dev/ffmpeg/builds/
 
-That repository records the exact upstream source revision used, the complete
-./configure invocation, and the build scripts required to reproduce the binary.
+The gyan.dev build page publishes the exact configure flags, the versions of
+every bundled library, and the scripts used to produce each release.
 
-The specific build shipped with this copy is identified in the file
-ffmpeg.lock.json, distributed alongside the application. That file records the
-FFmpeg version, the build identifier, the download URL, and the SHA-256 digest
-of the exact binary included here.
+The same identifiers are recorded in ffmpeg.lock.json, distributed alongside
+the application, so the shipped binary can always be matched to its source.
 
 If the URL above is unavailable, you may request the corresponding source code
 by email at:
