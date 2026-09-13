@@ -9,9 +9,11 @@ from dataclasses import dataclass
 from . import __version__
 
 
+GITHUB_REPOSITORY = "levan144/AeroRecorder"
 LATEST_RELEASE_API = (
-    "https://api.github.com/repos/levan144/Aero-Screen-Recorder/releases/latest"
+    f"https://api.github.com/repos/{GITHUB_REPOSITORY}/releases/latest"
 )
+RELEASES_PAGE_URL = f"https://github.com/{GITHUB_REPOSITORY}/releases/latest"
 
 
 @dataclass(frozen=True, slots=True)

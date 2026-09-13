@@ -208,6 +208,12 @@ class SettingsTests(unittest.TestCase):
 
 
 class UpdateTests(unittest.TestCase):
+    def test_release_endpoint_targets_the_renamed_repository(self) -> None:
+        from aero_recorder.updates import LATEST_RELEASE_API
+
+        self.assertIn("levan144/AeroRecorder/", LATEST_RELEASE_API)
+        self.assertNotIn("Aero-Screen-Recorder", LATEST_RELEASE_API)
+
     def test_release_versions_are_compared_numerically(self) -> None:
         self.assertEqual(version_tuple("v1.12.3-beta"), (1, 12, 3))
         self.assertTrue(is_newer_version("v0.2.0", "0.1.9"))
