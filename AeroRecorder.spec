@@ -11,6 +11,16 @@ ffmpeg_license = project_root / "tools" / "FFMPEG-LICENSE.txt"
 if ffmpeg_license.exists():
     portable_data.append((str(ffmpeg_license), "tools"))
 
+for name in ("LICENSE", "LICENSE-THIRD-PARTY.md"):
+    document = project_root / name
+    if not document.exists():
+        raise SystemExit(f"Required license document is missing: {document}")
+    portable_data.append((str(document), "."))
+
+source_offer = project_root / "tools" / "FFMPEG-SOURCE-OFFER.txt"
+if source_offer.exists():
+    portable_data.append((str(source_offer), "tools"))
+
 a = Analysis(
     [str(project_root / "main.py")],
     pathex=[str(project_root)],

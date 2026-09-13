@@ -23,6 +23,7 @@ UninstallDisplayName={#MyAppName}
 CloseApplications=yes
 RestartApplications=no
 SetupIconFile=..\assets\AeroRecorder.ico
+LicenseFile=..\LICENSE
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
