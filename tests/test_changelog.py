@@ -113,7 +113,7 @@ class CommandLineTests(unittest.TestCase):
                 timeout=30,
             )
         self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
-        self.assertIn("→".encode("utf-8"), result.stdout)
+        self.assertIn("→".encode(), result.stdout)
 
 
 if __name__ == "__main__":
