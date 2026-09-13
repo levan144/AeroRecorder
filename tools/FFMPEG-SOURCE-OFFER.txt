@@ -1,0 +1,37 @@
+WRITTEN OFFER FOR FFMPEG SOURCE CODE
+====================================
+
+AeroRecorder redistributes an unmodified prebuilt binary of FFmpeg, which is
+licensed under the GNU General Public License version 3 or later.
+
+In accordance with GPL-3.0 section 6, the complete corresponding source code
+for the FFmpeg binary distributed with this copy of AeroRecorder is available
+at no charge from:
+
+    https://github.com/levan144/aerorecorder-ffmpeg
+
+That repository records the exact upstream source revision used, the complete
+./configure invocation, and the build scripts required to reproduce the binary.
+
+The specific build shipped with this copy is identified in the file
+ffmpeg.lock.json, distributed alongside the application. That file records the
+FFmpeg version, the build identifier, the download URL, and the SHA-256 digest
+of the exact binary included here.
+
+If the URL above is unavailable, you may request the corresponding source code
+by email at:
+
+    levanjavakhishvili.1@gmail.com
+
+This offer is valid for three years from the date you received this copy of
+AeroRecorder, or for as long as AeroRecorder is offered for download, whichever
+period is longer.
+
+AeroRecorder invokes ffmpeg.exe as a separate process and does not link against
+FFmpeg libraries. FFmpeg's license therefore applies to the FFmpeg binary
+distributed here, and not to AeroRecorder's own source code, which is licensed
+under the PolyForm Noncommercial License 1.0.0.
+
+FFmpeg is a separate project and is not affiliated with or endorsed by
+AeroRecorder. The full GPL text as shipped with the FFmpeg build is in
+FFMPEG-LICENSE.txt in this same directory.
