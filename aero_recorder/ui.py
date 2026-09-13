@@ -2840,14 +2840,21 @@ class AeroRecorderApp:
         if result.success:
             self.status_var.set("Recording saved")
             self.hero_subtitle.configure(text=str(result.output_path))
-            self.refresh_recordings()
+            # Open the library on the recording that was just made. It is the
+            # one the user wants, so making them find it themselves is a step
+            # with no purpose. _show_page refreshes the list, so the new file
+            # is present before it is selected.
+            self._show_page("library")
+            self._select_recording(result.output_path)
         else:
             self.status_var.set("Recording failed")
             self.hero_subtitle.configure(text="Check FFmpeg and your recording settings")
-            messagebox.showerror(
+            # Deferred: opening a modal here would stall the UI queue, which is
+            # what made the window stop responding to the tray.
+            self._alert(
+                "error",
                 "Recording failed",
                 result.error or "FFmpeg could not create the recording.",
-                parent=self.root,
             )
         self.root.after(3500, self._reset_ready_status)
         self._restart_audio_meter()
@@ -2881,6 +2888,35 @@ class AeroRecorderApp:
     def _selected_recording(self) -> Path | None:
         selection = self.recordings_tree.selection()
         return self.recording_paths.get(selection[0]) if selection else None
+
+    def _select_recording(self, path: Path) -> bool:
+        """Select ``path`` in the library and scroll it into view.
+
+        Returns False when the path is not in the list, which happens if the
+        file was moved or deleted between the scan and this call.
+        """
+        if not hasattr(self, "recordings_tree"):
+            return False
+        try:
+            wanted = path.resolve()
+        except OSError:
+            wanted = path
+
+        for item_id, candidate in self.recording_paths.items():
+            try:
+                same = candidate.resolve() == wanted
+            except OSError:
+                same = candidate == path
+            if not same:
+                continue
+            try:
+                self.recordings_tree.selection_set(item_id)
+                self.recordings_tree.focus(item_id)
+                self.recordings_tree.see(item_id)
+            except tk.TclError:
+                return False
+            return True
+        return False
 
     def _update_library_actions(self) -> None:
         if not hasattr(self, "play_button"):

@@ -178,12 +178,11 @@ class UiQueuePumpTests(unittest.TestCase):
 
         uimod.messagebox.showerror = spy
         try:
-            # Queue an _alert exactly as a background handler would.
-            self.app._ui_queue.put(
-                lambda: self.app._alert("error", "Title", "Message")
-            )
-            # Drain once. The alert must NOT have opened yet.
-            self.root.update()
+            # Call it exactly as a queued handler would, and check before any
+            # further event-loop turn. _alert must schedule the dialog rather
+            # than open it, so that the pump returns and reschedules itself
+            # before anything can block.
+            self.app._alert("error", "Title", "Message")
             inline = len(opened_inline)
         finally:
             uimod.messagebox.showerror = original

@@ -140,6 +140,15 @@ class AudioLevelMonitor:
                         pass
             if thread and thread is not threading.current_thread():
                 thread.join(timeout=2.0)
+            # The reader holds the stdout pipe. Closing it here prevents a
+            # handle leaking on every meter restart, which happens whenever a
+            # device changes or a recording ends.
+            stdout = getattr(process, "stdout", None)
+            if stdout is not None:
+                try:
+                    stdout.close()
+                except (OSError, AttributeError):
+                    pass
 
         if wait:
             reap()
