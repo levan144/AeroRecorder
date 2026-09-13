@@ -43,9 +43,43 @@ def _normalized_name(value: str) -> str:
     return re.sub(r"[^a-z0-9]", "", value.lower())
 
 
+# Host APIs in order of preference. Windows lists the same physical device once
+# per API, and they are not equivalent: only WASAPI gives real-time, unbuffered
+# access. Measured on a real machine, the DirectSound entry for a microphone
+# returned 7,669 reads a second of repeated, clipped buffers while the WASAPI
+# entry returned 46.8 a second, exactly real time, with clean audio.
+_HOST_API_PREFERENCE = (
+    "windows wasapi",
+    "windows wdm-ks",
+    "mme",
+    "windows directsound",
+)
+
+
+def _host_api_rank(info: dict[str, Any], host_api_names: dict[int, str] | None) -> int:
+    """Higher is better. Unknown APIs rank below every known one."""
+    if not host_api_names:
+        return 0
+    name = str(host_api_names.get(int(info.get("hostApi", -1)), "")).strip().lower()
+    for rank, preferred in enumerate(reversed(_HOST_API_PREFERENCE), start=1):
+        if name == preferred:
+            return rank
+    return 0
+
+
 def best_input_device(
-    devices: Iterable[dict[str, Any]], requested: str, *, loopback: bool
+    devices: Iterable[dict[str, Any]],
+    requested: str,
+    *,
+    loopback: bool,
+    host_api_names: dict[int, str] | None = None,
 ) -> dict[str, Any] | None:
+    """Pick the device entry to open for ``requested``.
+
+    Name match comes first: the right device on a worse API beats the wrong
+    device on a better one. Among equally good name matches, the host API
+    breaks the tie in favour of WASAPI.
+    """
     requested_name = _normalized_name(requested)
     candidates = [
         info
@@ -56,14 +90,14 @@ def best_input_device(
     if not candidates:
         return None
 
-    def score(info: dict[str, Any]) -> tuple[int, int]:
+    def score(info: dict[str, Any]) -> tuple[int, int, int]:
         name = _normalized_name(str(info.get("name", "")))
         exact = int(name == requested_name)
         overlap = len(requested_name) if requested_name and requested_name in name else 0
-        return exact, overlap
+        return exact, overlap, _host_api_rank(info, host_api_names)
 
     selected = max(candidates, key=score)
-    return selected if score(selected) != (0, 0) or not requested_name else None
+    return selected if score(selected)[:2] != (0, 0) or not requested_name else None
 
 
 class AudioLevelMonitor:
@@ -188,13 +222,22 @@ def run_audio_meter_worker(payload: str) -> int:
             audio.get_device_info_by_index(index)
             for index in range(audio.get_device_count())
         ]
+        host_api_names = {
+            index: str(audio.get_host_api_info_by_index(index).get("name", ""))
+            for index in range(audio.get_host_api_count())
+        }
         for kind, device_name, loopback in (
             ("microphone", microphone, False),
             ("system", system_audio, True),
         ):
             if not device_name:
                 continue
-            device = best_input_device(devices, str(device_name), loopback=loopback)
+            device = best_input_device(
+                devices,
+                str(device_name),
+                loopback=loopback,
+                host_api_names=host_api_names,
+            )
             if device is None:
                 continue
             channels = max(1, min(2, int(device.get("maxInputChannels", 1))))

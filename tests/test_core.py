@@ -276,6 +276,61 @@ class AudioLevelTests(unittest.TestCase):
         self.assertEqual(microphone["index"], 1)  # type: ignore[index]
         self.assertEqual(speakers["index"], 2)  # type: ignore[index]
 
+    def test_wasapi_is_preferred_over_legacy_host_apis(self) -> None:
+        """Windows exposes the same physical device once per host API.
+
+        Measured on a real machine: the DirectSound entry returned 7,669
+        reads a second of repeated, clipped buffers, while the WASAPI entry
+        returned 46.8 a second, exactly real time, with clean audio. Picking
+        by name alone landed on DirectSound, so the meter showed garbage and
+        drifted minutes behind. The host API must break the tie.
+        """
+        # Real enumeration order and names from the machine that showed the bug.
+        devices = [
+            {"index": 0, "name": "Microsoft Sound Mapper - Input", "maxInputChannels": 2, "hostApi": 0},
+            {"index": 1, "name": "Microphone Array (AMD Audio Dev", "maxInputChannels": 2, "hostApi": 0},
+            {"index": 4, "name": "Primary Sound Capture Driver", "maxInputChannels": 2, "hostApi": 1},
+            {"index": 5, "name": "Microphone Array (AMD Audio Device)", "maxInputChannels": 2, "hostApi": 1},
+            {"index": 9, "name": "Microphone Array (AMD Audio Device)", "maxInputChannels": 2, "hostApi": 2},
+            {"index": 10, "name": "Speaker (Realtek(R) Audio) [Loopback]", "maxInputChannels": 2, "hostApi": 2, "isLoopbackDevice": True},
+        ]
+        host_apis = {0: "MME", 1: "Windows DirectSound", 2: "Windows WASAPI"}
+        chosen = best_input_device(
+            devices,
+            "Microphone Array (AMD Audio Device)",
+            loopback=False,
+            host_api_names=host_apis,
+        )
+        self.assertEqual(chosen["index"], 9, "must pick the WASAPI entry")  # type: ignore[index]
+
+    def test_a_non_wasapi_device_is_still_usable_when_nothing_better_exists(self) -> None:
+        devices = [
+            {"index": 3, "name": "USB Mic", "maxInputChannels": 1, "hostApi": 1},
+        ]
+        chosen = best_input_device(
+            devices, "USB Mic", loopback=False, host_api_names={1: "Windows DirectSound"}
+        )
+        self.assertEqual(chosen["index"], 3)  # type: ignore[index]
+
+    def test_host_api_preference_never_overrides_the_name_match(self) -> None:
+        """Right API but wrong device must lose to right device on a worse API."""
+        devices = [
+            {"index": 1, "name": "Webcam Mic", "maxInputChannels": 1, "hostApi": 2},
+            {"index": 2, "name": "Studio Microphone", "maxInputChannels": 1, "hostApi": 1},
+        ]
+        chosen = best_input_device(
+            devices,
+            "Studio Microphone",
+            loopback=False,
+            host_api_names={1: "Windows DirectSound", 2: "Windows WASAPI"},
+        )
+        self.assertEqual(chosen["index"], 2)  # type: ignore[index]
+
+    def test_selector_works_without_host_api_information(self) -> None:
+        devices = [{"index": 1, "name": "Studio Microphone", "maxInputChannels": 1}]
+        chosen = best_input_device(devices, "Studio Microphone", loopback=False)
+        self.assertEqual(chosen["index"], 1)  # type: ignore[index]
+
 
 class HotkeyTests(unittest.TestCase):
     def test_hotkey_is_validated_and_normalized(self) -> None:
