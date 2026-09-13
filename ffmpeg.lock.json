@@ -1,0 +1,12 @@
+{
+  "version": "9.0.1",
+  "build": "gyan-essentials-9.0.1",
+  "url": "https://github.com/GyanD/codexffmpeg/releases/download/9.0.1/ffmpeg-9.0.1-essentials_build.zip",
+  "sha256": "fec81ae03971d9dd4be3ebe02e263bd2ec1d789483f931bdba5f5715e65da2e9",
+  "size_bytes": 111253802,
+  "license": "GPL-3.0",
+  "source_url": "https://github.com/GyanD/codexffmpeg",
+  "archive_member": "ffmpeg-9.0.1-essentials_build/bin/ffmpeg.exe",
+  "license_member": "ffmpeg-9.0.1-essentials_build/LICENSE",
+  "is_archive": true
+}
